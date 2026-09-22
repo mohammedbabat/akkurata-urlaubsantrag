@@ -10,94 +10,141 @@
     document.write('<script src="https://alcdn.msftauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"><\/script>');
   }
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+  :root {
+    --primary: #6c5ce7;
+    --primary-dark: #5849c2;
+    --primary-light: #ede9fe;
+    --success: #16a34a;
+    --success-bg: #dcfce7;
+    --danger: #dc2626;
+    --danger-bg: #fee2e2;
+    --warning: #d97706;
+    --warning-bg: #fef3c7;
+    --gray-bg: #f1f2f6;
+    --text: #16181d;
+    --text-soft: #6b7280;
+    --border: #e9e9ef;
+    --surface: #ffffff;
+    --bg: #f6f6fb;
+    --radius: 14px;
+  }
   * { box-sizing: border-box; }
   body {
-    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    background: #f4f5f7;
+    font-family: 'Inter', -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: var(--bg);
     margin: 0;
-    color: #1a1a1a;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
   }
   header {
-    background: #2b2e4a;
+    background: linear-gradient(135deg, #2d2653 0%, #4b3f8f 100%);
     color: white;
-    padding: 16px 24px;
+    padding: 18px 28px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    box-shadow: 0 2px 12px rgba(76, 63, 143, 0.25);
   }
-  header h1 { font-size: 18px; margin: 0; }
-  #userInfo { font-size: 14px; display: none; align-items: center; gap: 10px; }
+  header h1 { font-size: 18px; margin: 0; font-weight: 700; letter-spacing: -0.02em; }
+  #userInfo { font-size: 14px; display: none; align-items: center; gap: 12px; }
+  #userName { font-weight: 500; opacity: 0.9; }
   #loginBtn, #logoutBtn {
-    background: #6c63ff; color: white; border: none; padding: 8px 16px;
-    border-radius: 6px; cursor: pointer; font-size: 14px;
+    background: var(--primary); color: white; border: none; padding: 10px 20px;
+    border-radius: 10px; cursor: pointer; font-size: 14px; font-weight: 600;
+    font-family: inherit; transition: transform 0.15s, background 0.15s;
   }
-  #logoutBtn { background: transparent; border: 1px solid rgba(255,255,255,0.4); }
-  main, #genehmigungScreen { max-width: 720px; margin: 24px auto; padding: 0 16px; display: none; }
-  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  #loginBtn:hover, #logoutBtn:hover { background: var(--primary-dark); }
+  #logoutBtn { background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); font-weight: 500; padding: 8px 16px; }
+  main, #genehmigungScreen { max-width: 760px; margin: 28px auto; padding: 0 16px; display: none; }
+  .tabs { display: flex; gap: 6px; margin-bottom: 20px; background: var(--surface); padding: 6px; border-radius: 14px; box-shadow: 0 1px 2px rgba(20,20,43,0.06); }
   .tab-btn {
-    background: white; border: 1px solid #ddd; padding: 8px 16px; border-radius: 20px;
-    font-size: 13px; cursor: pointer; color: #555;
+    background: transparent; border: none; padding: 10px 18px; border-radius: 10px;
+    font-size: 13.5px; font-weight: 600; cursor: pointer; color: var(--text-soft);
+    font-family: inherit; flex: 1; transition: background 0.15s, color 0.15s;
   }
-  .tab-btn.active { background: #2b2e4a; color: white; border-color: #2b2e4a; }
+  .tab-btn.active { background: var(--primary); color: white; }
   .card {
-    background: white; border-radius: 10px; padding: 20px;
-    margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    background: var(--surface); border-radius: var(--radius); padding: 22px;
+    margin-bottom: 18px; box-shadow: 0 1px 3px rgba(20,20,43,0.06), 0 1px 2px rgba(20,20,43,0.04);
+    border: 1px solid var(--border);
   }
-  .card h2 { font-size: 16px; margin: 0 0 16px; }
-  label { font-size: 13px; color: #555; display: block; margin-bottom: 4px; }
+  .card h2 { font-size: 16px; margin: 0 0 16px; font-weight: 700; letter-spacing: -0.01em; }
+  label { font-size: 13px; color: var(--text-soft); display: block; margin-bottom: 6px; font-weight: 500; }
   input, select, textarea {
-    width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px;
-    font-size: 14px; margin-bottom: 14px; font-family: inherit;
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--border); border-radius: 10px;
+    font-size: 14px; margin-bottom: 14px; font-family: inherit; background: var(--bg);
+    transition: border-color 0.15s;
   }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); background: white; }
   .row { display: flex; gap: 12px; }
   .row > div { flex: 1; }
   button.primary {
-    background: #6c63ff; color: white; border: none; width: 100%;
-    padding: 10px; border-radius: 6px; font-size: 14px; cursor: pointer;
+    background: var(--primary); color: white; border: none; width: 100%;
+    padding: 12px; border-radius: 10px; font-size: 14.5px; font-weight: 600; cursor: pointer;
+    font-family: inherit; transition: background 0.15s;
   }
-  button.primary:disabled { background: #b7b3ff; cursor: not-allowed; }
+  button.primary:hover { background: var(--primary-dark); }
+  button.primary:disabled { background: #c9c3f5; cursor: not-allowed; }
   .antrag-item {
-    padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+    padding: 14px 4px 14px 14px; border-bottom: 1px solid var(--border);
+    border-left: 3px solid transparent; border-radius: 6px;
   }
+  .antrag-item.border-Ausstehend { border-left-color: var(--warning); }
+  .antrag-item.border-Genehmigt { border-left-color: var(--success); }
+  .antrag-item.border-Abgelehnt { border-left-color: var(--danger); }
+  .antrag-item.border-Storniert, .antrag-item.border-StornoBeantragt { border-left-color: #9ca3af; }
   .antrag-item:last-child { border-bottom: none; }
   .antrag-item-top { display: flex; justify-content: space-between; align-items: center; }
-  .antrag-meta { font-size: 12px; color: #888; margin-top: 2px; }
-  .antrag-kommentar { font-size: 12px; color: #a94442; margin-top: 6px; font-style: italic; }
+  .antrag-item-top > div:first-child { font-weight: 600; font-size: 14.5px; }
+  .antrag-meta { font-size: 12.5px; color: var(--text-soft); margin-top: 3px; }
+  .antrag-kommentar { font-size: 12.5px; color: var(--danger); margin-top: 8px; font-style: italic; }
   .status {
-    font-size: 12px; padding: 3px 10px; border-radius: 12px; white-space: nowrap;
+    font-size: 11.5px; padding: 4px 12px; border-radius: 20px; white-space: nowrap; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.03em;
   }
-  .status-Ausstehend { background: #fff3cd; color: #8a6d00; }
-  .status-Genehmigt { background: #d4edda; color: #155724; }
-  .status-Abgelehnt { background: #f8d7da; color: #721c24; }
-  .status-Storniert, .status-StornoBeantragt { background: #e2e3e5; color: #383d41; }
+  .status-Ausstehend { background: var(--warning-bg); color: var(--warning); }
+  .status-Genehmigt { background: var(--success-bg); color: var(--success); }
+  .status-Abgelehnt { background: var(--danger-bg); color: var(--danger); }
+  .status-Storniert, .status-StornoBeantragt { background: #e5e7eb; color: #4b5563; }
   .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .stat-box { background: #f8f9fb; border-radius: 8px; padding: 12px; }
-  .stat-box .label { font-size: 12px; color: #888; margin-bottom: 4px; }
-  .stat-box .value { font-size: 22px; font-weight: 600; }
+  .stat-box { background: var(--bg); border-radius: 12px; padding: 14px; }
+  .stat-box .label { font-size: 11.5px; color: var(--text-soft); margin-bottom: 5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .stat-box .value { font-size: 24px; font-weight: 800; letter-spacing: -0.02em; }
+  .rest-ring-wrap { display: flex; align-items: center; gap: 24px; margin-bottom: 20px; }
+  .rest-ring-wrap svg { flex-shrink: 0; }
+  .rest-ring-label { font-size: 13px; color: var(--text-soft); font-weight: 600; }
+  .rest-ring-value { font-size: 32px; font-weight: 800; letter-spacing: -0.02em; fill: var(--text); }
   #loginScreen {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
-    height: 70vh; text-align: center;
+    height: 70vh; text-align: center; gap: 6px;
   }
+  #loginScreen p { color: var(--text-soft); margin-bottom: 8px; }
   #errorBox {
-    display: none; background: #f8d7da; color: #721c24; padding: 12px;
-    border-radius: 6px; margin: 16px auto; max-width: 720px;
+    display: none; background: var(--danger-bg); color: var(--danger); padding: 14px 18px;
+    border-radius: 12px; margin: 16px auto; max-width: 760px; font-size: 14px; font-weight: 500;
   }
-  .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
-  .detail-row span:first-child { color: #888; }
-  button.approve { background: #2e7d32; }
-  button.reject { background: #c62828; }
-  .btn-row { display: flex; gap: 10px; margin-top: 12px; }
-  .btn-row button { flex: 1; color: white; border: none; padding: 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
-  #genehmigungResult { display: none; text-align: center; padding: 20px; }
-  .admin-item { border-bottom: 1px solid #f0f0f0; padding: 12px 0; }
+  .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 14px; }
+  .detail-row span:first-child { color: var(--text-soft); font-weight: 500; }
+  .detail-row span:last-child { font-weight: 600; }
+  button.approve { background: var(--success); }
+  button.approve:hover { background: #15803d; }
+  button.reject { background: var(--danger); }
+  button.reject:hover { background: #b91c1c; }
+  .btn-row { display: flex; gap: 10px; margin-top: 14px; }
+  .btn-row button { flex: 1; color: white; border: none; padding: 10px; border-radius: 10px; font-size: 13.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+  #genehmigungResult { display: none; text-align: center; padding: 24px; font-weight: 500; color: var(--text-soft); }
+  .admin-item { border-bottom: 1px solid var(--border); padding: 14px 4px; }
   .admin-item:last-child { border-bottom: none; }
-  .mitarbeiter-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+  .mitarbeiter-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); }
   .mitarbeiter-row:last-child { border-bottom: none; }
-  .mitarbeiter-row .name { flex: 1; font-size: 14px; }
-  .mitarbeiter-row input { width: 70px; margin: 0; }
-  .mitarbeiter-row button { background: #6c63ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+  .mitarbeiter-row .name { flex: 1; font-size: 14px; font-weight: 500; }
+  .mitarbeiter-row input { width: 70px; margin: 0; padding: 6px 8px; }
+  .mitarbeiter-row button { background: var(--primary); color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
   #adminSection { display: none; margin-top: 24px; }
+
   #adminSection > h2 { font-size: 16px; margin-bottom: 12px; }
 </style>
 </head>
@@ -130,9 +177,19 @@
   <div id="tab-uebersicht" class="tab-content">
     <div class="card">
       <h2>Meine Urlaubsübersicht (<span id="aktuellesJahr"></span>)</h2>
+      <div class="rest-ring-wrap">
+        <svg width="110" height="110" viewBox="0 0 110 110">
+          <circle cx="55" cy="55" r="46" fill="none" stroke="var(--border)" stroke-width="12" />
+          <circle id="restRingCircle" cx="55" cy="55" r="46" fill="none" stroke="var(--primary)" stroke-width="12"
+                  stroke-linecap="round" transform="rotate(-90 55 55)" stroke-dasharray="289" stroke-dashoffset="289" />
+          <text x="55" y="51" text-anchor="middle" class="rest-ring-value" id="statRest">–</text>
+          <text x="55" y="70" text-anchor="middle" font-size="11" fill="var(--text-soft)" font-family="Inter">Tage übrig</text>
+        </svg>
+        <div>
+          <div class="rest-ring-label">Von <span id="statAnspruch">–</span> Tagen Jahresanspruch</div>
+        </div>
+      </div>
       <div class="stat-grid">
-        <div class="stat-box"><div class="label">Jahresanspruch</div><div class="value" id="statAnspruch">–</div></div>
-        <div class="stat-box"><div class="label">Resturlaub</div><div class="value" id="statRest">–</div></div>
         <div class="stat-box"><div class="label">Genommen</div><div class="value" id="statGenommen">–</div></div>
         <div class="stat-box"><div class="label">Ausstehend</div><div class="value" id="statAusstehend">–</div></div>
         <div class="stat-box"><div class="label">Storniert</div><div class="value" id="statStorniert">–</div></div>
@@ -391,11 +448,17 @@ async function loadUebersichtUndHistorie() {
     });
 
     document.getElementById("statAnspruch").textContent = jahresAnspruch || "–";
-    document.getElementById("statRest").textContent = jahresAnspruch ? (jahresAnspruch - genommen - ausstehend) : "–";
+    const rest = jahresAnspruch ? (jahresAnspruch - genommen - ausstehend) : null;
+    document.getElementById("statRest").textContent = rest !== null ? rest : "–";
     document.getElementById("statGenommen").textContent = genommen;
     document.getElementById("statAusstehend").textContent = ausstehend;
     document.getElementById("statStorniert").textContent = storniert;
     document.getElementById("statAbgelehnt").textContent = abgelehnt;
+
+    // Fortschrittsring befuellen (Umfang = 2 * PI * 46 ≈ 289)
+    const ring = document.getElementById("restRingCircle");
+    const anteil = jahresAnspruch ? Math.max(0, Math.min(1, rest / jahresAnspruch)) : 0;
+    ring.style.strokeDashoffset = (289 - anteil * 289).toFixed(1);
 
     if (items.length === 0) {
       listEl.innerHTML = "<p>Noch keine Anträge gestellt.</p>";
@@ -404,11 +467,12 @@ async function loadUebersichtUndHistorie() {
 
     listEl.innerHTML = items.map(item => {
       const f = item.fields;
-      const statusClass = "status-" + (f.Status || "Ausstehend").replace(/\s/g, "");
+      const statusSuffix = (f.Status || "Ausstehend").replace(/\s/g, "");
+      const statusClass = "status-" + statusSuffix;
       const kommentarZeile = (f.Status === "Abgelehnt" && f.GenehmigerKommentar)
         ? `<div class="antrag-kommentar">${f.GenehmigerKommentar}</div>` : "";
       return `
-        <div class="antrag-item">
+        <div class="antrag-item border-${statusSuffix}">
           <div class="antrag-item-top">
             <div>
               <div>${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)}</div>
