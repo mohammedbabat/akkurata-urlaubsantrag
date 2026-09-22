@@ -471,12 +471,18 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
 // ============================================================
 // ADMIN-STATUS PRÜFEN
 // ============================================================
+async function getAktiveGenehmiger() {
+  const alle = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields`);
+  return alle.value.filter(g => g.fields.Aktiv === true || g.fields.Aktiv === 1);
+}
+
 async function pruefeAdminStatus() {
   try {
     const email = currentAccount.username.toLowerCase();
-    const genehmiger = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields&$filter=fields/Aktiv eq 1`);
-    istAdmin = genehmiger.value.some(g => (g.fields.Email || "").toLowerCase() === email);
+    const genehmiger = await getAktiveGenehmiger();
+    istAdmin = genehmiger.some(g => (g.fields.Email || "").toLowerCase() === email);
   } catch (err) {
+    console.error("pruefeAdminStatus fehlgeschlagen:", err);
     istAdmin = false;
   }
 }
@@ -485,7 +491,7 @@ async function pruefeAdminStatus() {
 // GEMEINSAME ENTSCHEIDUNGS-LOGIK (Genehmigen/Ablehnen)
 // ============================================================
 async function verarbeiteEntscheidung(itemId, entscheidung) {
-  const genehmiger = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields&$filter=fields/Aktiv eq 1`);
+  const genehmigerListe = await getAktiveGenehmiger();
   const current = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`);
   const f = current.fields;
 
@@ -502,7 +508,7 @@ async function verarbeiteEntscheidung(itemId, entscheidung) {
     updateFields.Genehmigtam = new Date().toISOString();
   } else {
     const anzahlGenehmigt = genehmigtVon.split("\n").filter(z => z.includes(": genehmigt,")).length;
-    if (anzahlGenehmigt >= genehmiger.value.length) {
+    if (anzahlGenehmigt >= genehmigerListe.length) {
       updateFields.Status = "Genehmigt";
       updateFields.Genehmigtam = new Date().toISOString();
     }
@@ -523,12 +529,12 @@ async function loadGenehmigungAntrag(itemId) {
   const detailsEl = document.getElementById("genehmigungDetails");
   try {
     const item = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`);
-    const genehmiger = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields&$filter=fields/Aktiv eq 1`);
+    const genehmigerListe = await getAktiveGenehmiger();
 
     renderGenehmigungDetails(item.fields);
 
     const email = currentAccount.username.toLowerCase();
-    const berechtigt = genehmiger.value.some(g => (g.fields.Email || "").toLowerCase() === email);
+    const berechtigt = genehmigerListe.some(g => (g.fields.Email || "").toLowerCase() === email);
     const bereitsEntschieden = (item.fields.GenehmigtVon || "").toLowerCase().includes(email);
     const status = item.fields.Status || "Ausstehend";
 
