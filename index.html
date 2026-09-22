@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Akkurata Urlaubsantrag</title>
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background: #f4f5f7;
+    margin: 0;
+    color: #1a1a1a;
+  }
+  header {
+    background: #2b2e4a;
+    color: white;
+    padding: 16px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  header h1 { font-size: 18px; margin: 0; }
+  #userInfo { font-size: 14px; display: none; align-items: center; gap: 10px; }
+  #loginBtn, #logoutBtn {
+    background: #6c63ff; color: white; border: none; padding: 8px 16px;
+    border-radius: 6px; cursor: pointer; font-size: 14px;
+  }
+  #logoutBtn { background: transparent; border: 1px solid rgba(255,255,255,0.4); }
+  main { max-width: 640px; margin: 24px auto; padding: 0 16px; display: none; }
+  .card {
+    background: white; border-radius: 10px; padding: 20px;
+    margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .card h2 { font-size: 16px; margin: 0 0 16px; }
+  label { font-size: 13px; color: #555; display: block; margin-bottom: 4px; }
+  input, select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px;
+    font-size: 14px; margin-bottom: 14px; font-family: inherit;
+  }
+  .row { display: flex; gap: 12px; }
+  .row > div { flex: 1; }
+  button.primary {
+    background: #6c63ff; color: white; border: none; width: 100%;
+    padding: 10px; border-radius: 6px; font-size: 14px; cursor: pointer;
+  }
+  button.primary:disabled { background: #b7b3ff; cursor: not-allowed; }
+  .antrag-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 0; border-bottom: 1px solid #f0f0f0;
+  }
+  .antrag-item:last-child { border-bottom: none; }
+  .status {
+    font-size: 12px; padding: 3px 10px; border-radius: 12px; white-space: nowrap;
+  }
+  .status-Ausstehend { background: #fff3cd; color: #8a6d00; }
+  .status-Genehmigt { background: #d4edda; color: #155724; }
+  .status-Abgelehnt { background: #f8d7da; color: #721c24; }
+  .status-Storniert, .status-StornoBeantragt { background: #e2e3e5; color: #383d41; }
+  #loginScreen {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 70vh; text-align: center;
+  }
+  #errorBox {
+    display: none; background: #f8d7da; color: #721c24; padding: 12px;
+    border-radius: 6px; margin: 16px auto; max-width: 640px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Akkurata Urlaubsantrag</h1>
+  <div id="userInfo">
+    <span id="userName"></span>
+    <button id="logoutBtn">Abmelden</button>
+  </div>
+</header>
+
+<div id="errorBox"></div>
+
+<div id="loginScreen">
+  <p>Bitte melde dich mit deinem Microsoft-Konto an.</p>
+  <button id="loginBtn">Mit Microsoft anmelden</button>
+</div>
+
+<main id="app">
+
+  <div class="card">
+    <h2>Neuer Urlaubsantrag</h2>
+    <div class="row">
+      <div>
+        <label>Von</label>
+        <input type="date" id="vonDatum" />
+      </div>
+      <div>
+        <label>Bis</label>
+        <input type="date" id="bisDatum" />
+      </div>
+    </div>
+    <label>Urlaubsart</label>
+    <select id="urlaubsart">
+      <option>Erholungsurlaub</option>
+      <option>Sonderurlaub</option>
+      <option>Unbezahlter Urlaub</option>
+    </select>
+    <label>Kommentar (optional)</label>
+    <textarea id="kommentar" rows="2"></textarea>
+    <button class="primary" id="submitBtn">Antrag senden</button>
+  </div>
+
+  <div class="card">
+    <h2>Meine Anträge</h2>
+    <div id="antraegeList">Lade...</div>
+  </div>
+
+</main>
+
+<script>
+// ============================================================
+// KONFIGURATION
+// ============================================================
+const msalConfig = {
+  auth: {
+    clientId: "3599417e-c26f-4201-85d0-2c923ae5f2a6",
+    authority: "https://login.microsoftonline.com/b469eea1-8012-4bfa-81fc-5ec75d4c6f03",
+    redirectUri: window.location.origin + window.location.pathname
+  },
+  cache: {
+    cacheLocation: "sessionStorage",
+    storeAuthStateInCookie: false
+  }
+};
+
+const SITE_PATH = "akkuratatreuhand.sharepoint.com:/sites/Akkurata-Urlaubsantrag";
+const LIST_ID_URLAUBSANTRAEGE = "41e433a3-8e9d-4aad-bdff-208eaa727281";
+
+const graphScopes = ["Sites.ReadWrite.All"];
+
+const msalInstance = new msal.PublicClientApplication(msalConfig);
+let currentAccount = null;
+
+// ============================================================
+// LOGIN / LOGOUT
+// ============================================================
+async function init() {
+  await msalInstance.initialize();
+  const response = await msalInstance.handleRedirectPromise().catch(showError);
+  const accounts = msalInstance.getAllAccounts();
+
+  if (accounts.length > 0) {
+    currentAccount = accounts[0];
+    showApp();
+    loadAntraege();
+  }
+}
+
+document.getElementById("loginBtn").addEventListener("click", () => {
+  msalInstance.loginRedirect({ scopes: graphScopes });
+});
+
+document.getElementById("logoutBtn").addEventListener("click", () => {
+  msalInstance.logoutRedirect();
+});
+
+function showApp() {
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("app").style.display = "block";
+  document.getElementById("userInfo").style.display = "flex";
+  document.getElementById("userName").textContent = currentAccount.name || currentAccount.username;
+}
+
+function showError(err) {
+  console.error(err);
+  const box = document.getElementById("errorBox");
+  box.style.display = "block";
+  box.textContent = "Fehler: " + (err.message || err);
+}
+
+// ============================================================
+// GRAPH API HELPER
+// ============================================================
+async function getToken() {
+  const result = await msalInstance.acquireTokenSilent({
+    scopes: graphScopes,
+    account: currentAccount
+  }).catch(async () => {
+    return msalInstance.acquireTokenRedirect({ scopes: graphScopes });
+  });
+  return result.accessToken;
+}
+
+async function graphFetch(path, options = {}) {
+  const token = await getToken();
+  const res = await fetch("https://graph.microsoft.com/v1.0" + path, {
+    ...options,
+    headers: {
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json",
+      ...(options.headers || {})
+    }
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Graph-API-Fehler (${res.status}): ${body}`);
+  }
+  return res.json();
+}
+
+// ============================================================
+// ANTRÄGE LADEN
+// ============================================================
+async function loadAntraege() {
+  const listEl = document.getElementById("antraegeList");
+  try {
+    const email = currentAccount.username;
+    const data = await graphFetch(
+      `/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/AntragstellerEmail eq '${email}'&$orderby=fields/VonDatum desc`
+    );
+
+    if (data.value.length === 0) {
+      listEl.innerHTML = "<p>Noch keine Anträge gestellt.</p>";
+      return;
+    }
+
+    listEl.innerHTML = data.value.map(item => {
+      const f = item.fields;
+      const statusClass = "status-" + (f.Status || "Ausstehend").replace(/\s/g, "");
+      return `
+        <div class="antrag-item">
+          <div>
+            <div>${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)}</div>
+            <div style="font-size:12px;color:#888;">${f.Urlaubsart || ""} · ${f.AnzahlTage || "?"} Tage</div>
+          </div>
+          <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    showError(err);
+    listEl.innerHTML = "<p>Fehler beim Laden.</p>";
+  }
+}
+
+function formatDate(iso) {
+  if (!iso) return "?";
+  const d = new Date(iso);
+  return d.toLocaleDateString("de-DE");
+}
+
+function berechneTage(von, bis) {
+  const start = new Date(von);
+  const end = new Date(bis);
+  let tage = 0;
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const wd = d.getDay();
+    if (wd !== 0 && wd !== 6) tage++; // Wochenenden ausschliessen
+  }
+  return tage;
+}
+
+// ============================================================
+// ANTRAG ABSENDEN
+// ============================================================
+document.getElementById("submitBtn").addEventListener("click", async () => {
+  const von = document.getElementById("vonDatum").value;
+  const bis = document.getElementById("bisDatum").value;
+  const urlaubsart = document.getElementById("urlaubsart").value;
+  const kommentar = document.getElementById("kommentar").value;
+
+  if (!von || !bis) {
+    showError(new Error("Bitte Von- und Bis-Datum angeben."));
+    return;
+  }
+
+  const btn = document.getElementById("submitBtn");
+  btn.disabled = true;
+  btn.textContent = "Wird gesendet...";
+
+  try {
+    const tage = berechneTage(von, bis);
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items`, {
+      method: "POST",
+      body: JSON.stringify({
+        fields: {
+          Title: `Antrag-${Date.now()}`,
+          AntragstellerEmail: currentAccount.username,
+          AntragstellerName: currentAccount.name || currentAccount.username,
+          VonDatum: new Date(von).toISOString(),
+          BisDatum: new Date(bis).toISOString(),
+          AnzahlTage: tage,
+          Urlaubsart: urlaubsart,
+          Kommentar: kommentar,
+          Status: "Ausstehend"
+        }
+      })
+    });
+
+    document.getElementById("vonDatum").value = "";
+    document.getElementById("bisDatum").value = "";
+    document.getElementById("kommentar").value = "";
+    loadAntraege();
+  } catch (err) {
+    showError(err);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Antrag senden";
+  }
+});
+
+init();
+</script>
+
+</body>
+</html>
