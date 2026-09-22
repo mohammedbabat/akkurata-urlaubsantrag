@@ -124,6 +124,7 @@
     <button class="tab-btn active" data-tab="uebersicht">Übersicht</button>
     <button class="tab-btn" data-tab="neuerAntrag">Neuer Antrag</button>
     <button class="tab-btn" data-tab="historie">Historie</button>
+    <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none;">Admin</button>
   </div>
 
   <div id="tab-uebersicht" class="tab-content">
@@ -172,8 +173,8 @@
     </div>
   </div>
 
-  <div id="adminSection">
-    <h2>Admin – Genehmigungen &amp; Mitarbeiter</h2>
+  <div id="tab-admin" class="tab-content" style="display:none;">
+    <h2 style="font-size:16px; margin-bottom:12px;">Admin – Genehmigungen &amp; Mitarbeiter</h2>
 
     <div class="card">
       <h2>Offene Anträge</h2>
@@ -263,7 +264,7 @@ async function init() {
       await pruefeAdminStatus();
       loadUebersichtUndHistorie();
       if (istAdmin) {
-        document.getElementById("adminSection").style.display = "block";
+        document.getElementById("adminTabBtn").style.display = "inline-block";
         loadAdminOffeneAntraege();
         loadMitarbeiterListe();
       }
