@@ -221,8 +221,11 @@ async function loadAntraege() {
   try {
     const email = currentAccount.username;
     const data = await graphFetch(
-      `/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/AntragstellerEmail eq '${email}'&$orderby=fields/VonDatum desc`
+      `/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/AntragstellerEmail eq '${email}'`
     );
+
+    // Sortierung nach VonDatum (neueste zuerst) im Client, da das Feld nicht indiziert ist
+    data.value.sort((a, b) => new Date(b.fields.VonDatum) - new Date(a.fields.VonDatum));
 
     if (data.value.length === 0) {
       listEl.innerHTML = "<p>Noch keine Anträge gestellt.</p>";
