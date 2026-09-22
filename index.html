@@ -33,7 +33,13 @@
     border-radius: 6px; cursor: pointer; font-size: 14px;
   }
   #logoutBtn { background: transparent; border: 1px solid rgba(255,255,255,0.4); }
-  main { max-width: 640px; margin: 24px auto; padding: 0 16px; display: none; }
+  main, #genehmigungScreen { max-width: 720px; margin: 24px auto; padding: 0 16px; display: none; }
+  .tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+  .tab-btn {
+    background: white; border: 1px solid #ddd; padding: 8px 16px; border-radius: 20px;
+    font-size: 13px; cursor: pointer; color: #555;
+  }
+  .tab-btn.active { background: #2b2e4a; color: white; border-color: #2b2e4a; }
   .card {
     background: white; border-radius: 10px; padding: 20px;
     margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
@@ -52,10 +58,12 @@
   }
   button.primary:disabled { background: #b7b3ff; cursor: not-allowed; }
   .antrag-item {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 10px 0; border-bottom: 1px solid #f0f0f0;
+    padding: 12px 0; border-bottom: 1px solid #f0f0f0;
   }
   .antrag-item:last-child { border-bottom: none; }
+  .antrag-item-top { display: flex; justify-content: space-between; align-items: center; }
+  .antrag-meta { font-size: 12px; color: #888; margin-top: 2px; }
+  .antrag-kommentar { font-size: 12px; color: #a94442; margin-top: 6px; font-style: italic; }
   .status {
     font-size: 12px; padding: 3px 10px; border-radius: 12px; white-space: nowrap;
   }
@@ -63,22 +71,34 @@
   .status-Genehmigt { background: #d4edda; color: #155724; }
   .status-Abgelehnt { background: #f8d7da; color: #721c24; }
   .status-Storniert, .status-StornoBeantragt { background: #e2e3e5; color: #383d41; }
+  .stat-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .stat-box { background: #f8f9fb; border-radius: 8px; padding: 12px; }
+  .stat-box .label { font-size: 12px; color: #888; margin-bottom: 4px; }
+  .stat-box .value { font-size: 22px; font-weight: 600; }
   #loginScreen {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     height: 70vh; text-align: center;
   }
   #errorBox {
     display: none; background: #f8d7da; color: #721c24; padding: 12px;
-    border-radius: 6px; margin: 16px auto; max-width: 640px;
+    border-radius: 6px; margin: 16px auto; max-width: 720px;
   }
-  #genehmigungScreen { display: none; max-width: 640px; margin: 24px auto; padding: 0 16px; }
   .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
   .detail-row span:first-child { color: #888; }
   button.approve { background: #2e7d32; }
   button.reject { background: #c62828; }
-  .btn-row { display: flex; gap: 10px; margin-top: 16px; }
-  .btn-row button { flex: 1; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  .btn-row { display: flex; gap: 10px; margin-top: 12px; }
+  .btn-row button { flex: 1; color: white; border: none; padding: 8px; border-radius: 6px; font-size: 13px; cursor: pointer; }
   #genehmigungResult { display: none; text-align: center; padding: 20px; }
+  .admin-item { border-bottom: 1px solid #f0f0f0; padding: 12px 0; }
+  .admin-item:last-child { border-bottom: none; }
+  .mitarbeiter-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+  .mitarbeiter-row:last-child { border-bottom: none; }
+  .mitarbeiter-row .name { flex: 1; font-size: 14px; }
+  .mitarbeiter-row input { width: 70px; margin: 0; }
+  .mitarbeiter-row button { background: #6c63ff; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; }
+  #adminSection { display: none; margin-top: 24px; }
+  #adminSection > h2 { font-size: 16px; margin-bottom: 12px; }
 </style>
 </head>
 <body>
@@ -100,32 +120,79 @@
 
 <main id="app">
 
-  <div class="card">
-    <h2>Neuer Urlaubsantrag</h2>
-    <div class="row">
-      <div>
-        <label>Von</label>
-        <input type="date" id="vonDatum" />
-      </div>
-      <div>
-        <label>Bis</label>
-        <input type="date" id="bisDatum" />
-      </div>
-    </div>
-    <label>Urlaubsart</label>
-    <select id="urlaubsart">
-      <option>Erholungsurlaub</option>
-      <option>Sonderurlaub</option>
-      <option>Unbezahlter Urlaub</option>
-    </select>
-    <label>Kommentar (optional)</label>
-    <textarea id="kommentar" rows="2"></textarea>
-    <button class="primary" id="submitBtn">Antrag senden</button>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="uebersicht">Übersicht</button>
+    <button class="tab-btn" data-tab="neuerAntrag">Neuer Antrag</button>
+    <button class="tab-btn" data-tab="historie">Historie</button>
   </div>
 
-  <div class="card">
-    <h2>Meine Anträge</h2>
-    <div id="antraegeList">Lade...</div>
+  <div id="tab-uebersicht" class="tab-content">
+    <div class="card">
+      <h2>Meine Urlaubsübersicht (<span id="aktuellesJahr"></span>)</h2>
+      <div class="stat-grid">
+        <div class="stat-box"><div class="label">Jahresanspruch</div><div class="value" id="statAnspruch">–</div></div>
+        <div class="stat-box"><div class="label">Resturlaub</div><div class="value" id="statRest">–</div></div>
+        <div class="stat-box"><div class="label">Genommen</div><div class="value" id="statGenommen">–</div></div>
+        <div class="stat-box"><div class="label">Ausstehend</div><div class="value" id="statAusstehend">–</div></div>
+        <div class="stat-box"><div class="label">Storniert</div><div class="value" id="statStorniert">–</div></div>
+        <div class="stat-box"><div class="label">Abgelehnt</div><div class="value" id="statAbgelehnt">–</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="tab-neuerAntrag" class="tab-content" style="display:none;">
+    <div class="card">
+      <h2>Neuer Urlaubsantrag</h2>
+      <div class="row">
+        <div>
+          <label>Von</label>
+          <input type="date" id="vonDatum" />
+        </div>
+        <div>
+          <label>Bis</label>
+          <input type="date" id="bisDatum" />
+        </div>
+      </div>
+      <label>Urlaubsart</label>
+      <select id="urlaubsart">
+        <option>Erholungsurlaub</option>
+        <option>Sonderurlaub</option>
+        <option>Unbezahlter Urlaub</option>
+      </select>
+      <label>Kommentar (optional)</label>
+      <textarea id="kommentar" rows="2"></textarea>
+      <button class="primary" id="submitBtn">Antrag senden</button>
+    </div>
+  </div>
+
+  <div id="tab-historie" class="tab-content" style="display:none;">
+    <div class="card">
+      <h2>Meine Historie</h2>
+      <div id="antraegeList">Lade...</div>
+    </div>
+  </div>
+
+  <div id="adminSection">
+    <h2>Admin – Genehmigungen &amp; Mitarbeiter</h2>
+
+    <div class="card">
+      <h2>Offene Anträge</h2>
+      <div id="adminOffeneAntraege">Lade...</div>
+    </div>
+
+    <div class="card">
+      <h2>Mitarbeiter-Jahresanspruch</h2>
+      <div id="mitarbeiterListe">Lade...</div>
+      <div style="margin-top:16px; border-top:1px solid #f0f0f0; padding-top:16px;">
+        <label>Neuer Mitarbeiter – E-Mail</label>
+        <input type="text" id="neuerMitarbeiterEmail" placeholder="vorname.nachname@akkurata-treuhand.de" />
+        <label>Name</label>
+        <input type="text" id="neuerMitarbeiterName" />
+        <label>Jahresanspruch (Tage)</label>
+        <input type="number" id="neuerMitarbeiterAnspruch" value="30" />
+        <button class="primary" id="neuerMitarbeiterBtn">Hinzufügen</button>
+      </div>
+    </div>
   </div>
 
 </main>
@@ -161,11 +228,13 @@ const msalConfig = {
 const SITE_PATH = "akkuratatreuhand.sharepoint.com:/sites/Akkurata-Urlaubsantrag:";
 const LIST_ID_URLAUBSANTRAEGE = "41e433a3-8e9d-4aad-bdff-208eaa727281";
 const LIST_ID_GENEHMIGER = "79e08655-41a1-450c-89fb-805deedea0e9";
+const LIST_ID_MITARBEITER = "890b2bc5-a7fa-43de-a232-b52fec391c39";
 
 const graphScopes = ["Sites.ReadWrite.All"];
 
 const msalInstance = new msal.PublicClientApplication(msalConfig);
 let currentAccount = null;
+let istAdmin = false;
 
 // Antrag-ID aus der URL vor dem Login-Redirect sichern (geht sonst beim Redirect verloren)
 const antragIdFromUrl = new URLSearchParams(window.location.search).get("antrag");
@@ -176,7 +245,7 @@ if (antragIdFromUrl) sessionStorage.setItem("pendingAntragId", antragIdFromUrl);
 // ============================================================
 async function init() {
   await msalInstance.initialize();
-  const response = await msalInstance.handleRedirectPromise().catch(showError);
+  await msalInstance.handleRedirectPromise().catch(showError);
   const accounts = msalInstance.getAllAccounts();
 
   if (accounts.length > 0) {
@@ -191,7 +260,13 @@ async function init() {
       loadGenehmigungAntrag(antragId);
     } else {
       showApp();
-      loadAntraege();
+      await pruefeAdminStatus();
+      loadUebersichtUndHistorie();
+      if (istAdmin) {
+        document.getElementById("adminSection").style.display = "block";
+        loadAdminOffeneAntraege();
+        loadMitarbeiterListe();
+      }
     }
   }
 }
@@ -217,6 +292,16 @@ function showError(err) {
   box.style.display = "block";
   box.textContent = "Fehler: " + (err.message || err);
 }
+
+// Tabs
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
+    btn.classList.add("active");
+    document.getElementById("tab-" + btn.dataset.tab).style.display = "block";
+  });
+});
 
 // ============================================================
 // GRAPH API HELPER
@@ -245,51 +330,13 @@ async function graphFetch(path, options = {}) {
     const body = await res.text();
     throw new Error(`Graph-API-Fehler (${res.status}): ${body}`);
   }
+  if (res.status === 204) return null;
   return res.json();
-}
-
-// ============================================================
-// ANTRÄGE LADEN
-// ============================================================
-async function loadAntraege() {
-  const listEl = document.getElementById("antraegeList");
-  try {
-    const email = currentAccount.username;
-    const data = await graphFetch(
-      `/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/AntragstellerEmail eq '${email}'`
-    );
-
-    // Sortierung nach VonDatum (neueste zuerst) im Client, da das Feld nicht indiziert ist
-    data.value.sort((a, b) => new Date(b.fields.VonDatum) - new Date(a.fields.VonDatum));
-
-    if (data.value.length === 0) {
-      listEl.innerHTML = "<p>Noch keine Anträge gestellt.</p>";
-      return;
-    }
-
-    listEl.innerHTML = data.value.map(item => {
-      const f = item.fields;
-      const statusClass = "status-" + (f.Status || "Ausstehend").replace(/\s/g, "");
-      return `
-        <div class="antrag-item">
-          <div>
-            <div>${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)}</div>
-            <div style="font-size:12px;color:#888;">${f.Urlaubsart || ""} · ${f.AnzahlTage || "?"} Tage</div>
-          </div>
-          <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
-        </div>
-      `;
-    }).join("");
-  } catch (err) {
-    showError(err);
-    listEl.innerHTML = "<p>Fehler beim Laden.</p>";
-  }
 }
 
 function formatDate(iso) {
   if (!iso) return "?";
-  const d = new Date(iso);
-  return d.toLocaleDateString("de-DE");
+  return new Date(iso).toLocaleDateString("de-DE");
 }
 
 function berechneTage(von, bis) {
@@ -298,9 +345,77 @@ function berechneTage(von, bis) {
   let tage = 0;
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const wd = d.getDay();
-    if (wd !== 0 && wd !== 6) tage++; // Wochenenden ausschliessen
+    if (wd !== 0 && wd !== 6) tage++;
   }
   return tage;
+}
+
+// ============================================================
+// ÜBERSICHT + HISTORIE (eigene Anträge)
+// ============================================================
+async function loadUebersichtUndHistorie() {
+  const listEl = document.getElementById("antraegeList");
+  const jahr = new Date().getFullYear();
+  document.getElementById("aktuellesJahr").textContent = jahr;
+
+  try {
+    const email = currentAccount.username;
+
+    const [antraege, anspruchData] = await Promise.all([
+      graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/AntragstellerEmail eq '${email}'`),
+      graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items?expand=fields&$filter=fields/Email eq '${email}'`).catch(() => ({ value: [] }))
+    ]);
+
+    const items = antraege.value;
+    items.sort((a, b) => new Date(b.fields.VonDatum) - new Date(a.fields.VonDatum));
+
+    const jahresAnspruch = anspruchData.value.length > 0 ? (anspruchData.value[0].fields.JahresAnspruch || 0) : 0;
+
+    let genommen = 0, ausstehend = 0, storniert = 0, abgelehnt = 0;
+    items.forEach(item => {
+      const f = item.fields;
+      if (new Date(f.VonDatum).getFullYear() !== jahr && f.Status !== "Ausstehend") return;
+      const tage = f.AnzahlTage || 0;
+      if (f.Status === "Genehmigt") genommen += tage;
+      else if (f.Status === "Ausstehend") ausstehend += tage;
+      else if (f.Status === "Storniert" || f.Status === "Storno beantragt") storniert += tage;
+      else if (f.Status === "Abgelehnt") abgelehnt += tage;
+    });
+
+    document.getElementById("statAnspruch").textContent = jahresAnspruch || "–";
+    document.getElementById("statRest").textContent = jahresAnspruch ? (jahresAnspruch - genommen - ausstehend) : "–";
+    document.getElementById("statGenommen").textContent = genommen;
+    document.getElementById("statAusstehend").textContent = ausstehend;
+    document.getElementById("statStorniert").textContent = storniert;
+    document.getElementById("statAbgelehnt").textContent = abgelehnt;
+
+    if (items.length === 0) {
+      listEl.innerHTML = "<p>Noch keine Anträge gestellt.</p>";
+      return;
+    }
+
+    listEl.innerHTML = items.map(item => {
+      const f = item.fields;
+      const statusClass = "status-" + (f.Status || "Ausstehend").replace(/\s/g, "");
+      const kommentarZeile = (f.Status === "Abgelehnt" && f.GenehmigerKommentar)
+        ? `<div class="antrag-kommentar">${f.GenehmigerKommentar}</div>` : "";
+      return `
+        <div class="antrag-item">
+          <div class="antrag-item-top">
+            <div>
+              <div>${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)}</div>
+              <div class="antrag-meta">${f.Urlaubsart || ""} · ${f.AnzahlTage || "?"} Tage</div>
+            </div>
+            <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
+          </div>
+          ${kommentarZeile}
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    showError(err);
+    listEl.innerHTML = "<p>Fehler beim Laden.</p>";
+  }
 }
 
 // ============================================================
@@ -343,7 +458,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     document.getElementById("vonDatum").value = "";
     document.getElementById("bisDatum").value = "";
     document.getElementById("kommentar").value = "";
-    loadAntraege();
+    loadUebersichtUndHistorie();
   } catch (err) {
     showError(err);
   } finally {
@@ -352,29 +467,71 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
   }
 });
 
-init();
+// ============================================================
+// ADMIN-STATUS PRÜFEN
+// ============================================================
+async function pruefeAdminStatus() {
+  try {
+    const email = currentAccount.username.toLowerCase();
+    const genehmiger = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields&$filter=fields/Aktiv eq 1`);
+    istAdmin = genehmiger.value.some(g => (g.fields.Email || "").toLowerCase() === email);
+  } catch (err) {
+    istAdmin = false;
+  }
+}
 
 // ============================================================
-// GENEHMIGUNGS-ANSICHT
+// GEMEINSAME ENTSCHEIDUNGS-LOGIK (Genehmigen/Ablehnen)
+// ============================================================
+async function verarbeiteEntscheidung(itemId, entscheidung) {
+  const genehmiger = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields&$filter=fields/Aktiv eq 1`);
+  const current = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`);
+  const f = current.fields;
+
+  const name = currentAccount.name || currentAccount.username;
+  const email = currentAccount.username;
+  const datum = new Date().toLocaleDateString("de-DE");
+  const neuerEintrag = `${name} (${email}): ${entscheidung}, ${datum}`;
+  const genehmigtVon = f.GenehmigtVon ? f.GenehmigtVon + "\n" + neuerEintrag : neuerEintrag;
+
+  const updateFields = { GenehmigtVon: genehmigtVon };
+
+  if (entscheidung === "abgelehnt") {
+    updateFields.Status = "Abgelehnt";
+    updateFields.Genehmigtam = new Date().toISOString();
+  } else {
+    const anzahlGenehmigt = genehmigtVon.split("\n").filter(z => z.includes(": genehmigt,")).length;
+    if (anzahlGenehmigt >= genehmiger.value.length) {
+      updateFields.Status = "Genehmigt";
+      updateFields.Genehmigtam = new Date().toISOString();
+    }
+  }
+
+  await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ fields: updateFields })
+  });
+
+  return updateFields.Status || "Ausstehend";
+}
+
+// ============================================================
+// GENEHMIGUNGS-ANSICHT (aus E-Mail-Link)
 // ============================================================
 async function loadGenehmigungAntrag(itemId) {
   const detailsEl = document.getElementById("genehmigungDetails");
   try {
-    const item = await graphFetch(
-      `/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`
-    );
-    const genehmiger = await graphFetch(
-      `/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields&$filter=fields/Aktiv eq 1`
-    );
+    const item = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`);
+    const genehmiger = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields&$filter=fields/Aktiv eq 1`);
 
     renderGenehmigungDetails(item.fields);
 
     const email = currentAccount.username.toLowerCase();
-    const istBerechtigt = genehmiger.value.some(g => (g.fields.Email || "").toLowerCase() === email);
+    const berechtigt = genehmiger.value.some(g => (g.fields.Email || "").toLowerCase() === email);
     const bereitsEntschieden = (item.fields.GenehmigtVon || "").toLowerCase().includes(email);
     const status = item.fields.Status || "Ausstehend";
 
-    if (!istBerechtigt) {
+    if (!berechtigt) {
       showGenehmigungResult("Du bist nicht als Genehmiger hinterlegt und kannst diesen Antrag nicht bearbeiten.");
     } else if (status !== "Ausstehend") {
       showGenehmigungResult(`Dieser Antrag wurde bereits final bearbeitet. Status: ${status}`);
@@ -382,8 +539,8 @@ async function loadGenehmigungAntrag(itemId) {
       showGenehmigungResult("Du hast zu diesem Antrag bereits eine Entscheidung abgegeben.");
     } else {
       document.getElementById("genehmigungButtons").style.display = "flex";
-      document.getElementById("approveBtn").onclick = () => entscheiden(itemId, "genehmigt", genehmiger.value);
-      document.getElementById("rejectBtn").onclick = () => entscheiden(itemId, "abgelehnt", genehmiger.value);
+      document.getElementById("approveBtn").onclick = () => entscheidenViaLink(itemId, "genehmigt");
+      document.getElementById("rejectBtn").onclick = () => entscheidenViaLink(itemId, "abgelehnt");
     }
   } catch (err) {
     showError(err);
@@ -408,47 +565,134 @@ function showGenehmigungResult(text) {
   box.textContent = text;
 }
 
-async function entscheiden(itemId, entscheidung, aktiveGenehmiger) {
+async function entscheidenViaLink(itemId, entscheidung) {
   document.getElementById("genehmigungButtons").style.display = "none";
   try {
-    // Aktuellen Stand frisch holen, um nicht mit veraltetem GenehmigtVon zu ueberschreiben
-    const current = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`);
-    const f = current.fields;
-
-    const name = currentAccount.name || currentAccount.username;
-    const email = currentAccount.username;
-    const datum = new Date().toLocaleDateString("de-DE");
-    const neuerEintrag = `${name} (${email}): ${entscheidung}, ${datum}`;
-    const genehmigtVon = f.GenehmigtVon ? f.GenehmigtVon + "\n" + neuerEintrag : neuerEintrag;
-
-    const updateFields = { GenehmigtVon: genehmigtVon };
-
-    if (entscheidung === "abgelehnt") {
-      updateFields.Status = "Abgelehnt";
-      updateFields.Genehmigtam = new Date().toISOString();
-    } else {
-      const anzahlGenehmigt = genehmigtVon.split("\n").filter(z => z.includes(": genehmigt,")).length;
-      if (anzahlGenehmigt >= aktiveGenehmiger.length) {
-        updateFields.Status = "Genehmigt";
-        updateFields.Genehmigtam = new Date().toISOString();
-      }
-      // sonst bleibt Status "Ausstehend", weitere Genehmiger muessen noch entscheiden
-    }
-
-    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, {
-      method: "PATCH",
-      body: JSON.stringify({ fields: updateFields })
-    });
-
+    const status = await verarbeiteEntscheidung(itemId, entscheidung);
     showGenehmigungResult(
-      entscheidung === "abgelehnt"
-        ? "Antrag wurde abgelehnt."
-        : (updateFields.Status === "Genehmigt" ? "Antrag wurde vollständig genehmigt." : "Deine Genehmigung wurde gespeichert. Weitere Genehmiger müssen noch entscheiden.")
+      entscheidung === "abgelehnt" ? "Antrag wurde abgelehnt."
+      : (status === "Genehmigt" ? "Antrag wurde vollständig genehmigt." : "Deine Genehmigung wurde gespeichert. Weitere Genehmiger müssen noch entscheiden.")
     );
   } catch (err) {
     showError(err);
   }
 }
+
+// ============================================================
+// ADMIN: OFFENE ANTRÄGE (alle Mitarbeiter, direkt im Dashboard)
+// ============================================================
+async function loadAdminOffeneAntraege() {
+  const el = document.getElementById("adminOffeneAntraege");
+  try {
+    const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/Status eq 'Ausstehend'`);
+    if (data.value.length === 0) {
+      el.innerHTML = "<p>Keine offenen Anträge.</p>";
+      return;
+    }
+    data.value.sort((a, b) => new Date(a.fields.VonDatum) - new Date(b.fields.VonDatum));
+
+    el.innerHTML = data.value.map(item => {
+      const f = item.fields;
+      const email = currentAccount.username.toLowerCase();
+      const bereitsEntschieden = (f.GenehmigtVon || "").toLowerCase().includes(email);
+      return `
+        <div class="admin-item">
+          <div class="antrag-item-top">
+            <div>
+              <div><strong>${f.AntragstellerName || f.AntragstellerEmail}</strong></div>
+              <div class="antrag-meta">${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)} · ${f.Urlaubsart || ""} · ${f.AnzahlTage || "?"} Tage</div>
+            </div>
+          </div>
+          ${bereitsEntschieden
+            ? `<div class="antrag-meta" style="margin-top:8px;">Du hast bereits entschieden.</div>`
+            : `<div class="btn-row">
+                 <button class="approve" onclick="adminEntscheiden('${item.id}', 'genehmigt')">Genehmigen</button>
+                 <button class="reject" onclick="adminEntscheiden('${item.id}', 'abgelehnt')">Ablehnen</button>
+               </div>`
+          }
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    showError(err);
+    el.innerHTML = "<p>Fehler beim Laden.</p>";
+  }
+}
+
+async function adminEntscheiden(itemId, entscheidung) {
+  try {
+    await verarbeiteEntscheidung(itemId, entscheidung);
+    loadAdminOffeneAntraege();
+  } catch (err) {
+    showError(err);
+  }
+}
+
+// ============================================================
+// ADMIN: MITARBEITER-JAHRESANSPRUCH VERWALTEN
+// ============================================================
+async function loadMitarbeiterListe() {
+  const el = document.getElementById("mitarbeiterListe");
+  try {
+    const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items?expand=fields`);
+    if (data.value.length === 0) {
+      el.innerHTML = "<p>Noch keine Mitarbeiter erfasst.</p>";
+      return;
+    }
+    data.value.sort((a, b) => (a.fields.Title || "").localeCompare(b.fields.Title || ""));
+
+    el.innerHTML = data.value.map(item => `
+      <div class="mitarbeiter-row">
+        <span class="name">${item.fields.Title || ""} <span style="color:#aaa;">(${item.fields.Email || ""})</span></span>
+        <input type="number" id="anspruch-${item.id}" value="${item.fields.JahresAnspruch || 0}" />
+        <button onclick="speichereAnspruch('${item.id}')">Speichern</button>
+      </div>
+    `).join("");
+  } catch (err) {
+    showError(err);
+    el.innerHTML = "<p>Fehler beim Laden.</p>";
+  }
+}
+
+async function speichereAnspruch(itemId) {
+  const neuerWert = document.getElementById(`anspruch-${itemId}`).value;
+  try {
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ fields: { JahresAnspruch: Number(neuerWert) } })
+    });
+  } catch (err) {
+    showError(err);
+  }
+}
+
+document.getElementById("neuerMitarbeiterBtn").addEventListener("click", async () => {
+  const email = document.getElementById("neuerMitarbeiterEmail").value.trim();
+  const name = document.getElementById("neuerMitarbeiterName").value.trim();
+  const anspruch = document.getElementById("neuerMitarbeiterAnspruch").value;
+
+  if (!email || !name) {
+    showError(new Error("Bitte E-Mail und Name angeben."));
+    return;
+  }
+
+  try {
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items`, {
+      method: "POST",
+      body: JSON.stringify({
+        fields: { Title: name, Email: email, JahresAnspruch: Number(anspruch) }
+      })
+    });
+    document.getElementById("neuerMitarbeiterEmail").value = "";
+    document.getElementById("neuerMitarbeiterName").value = "";
+    document.getElementById("neuerMitarbeiterAnspruch").value = "30";
+    loadMitarbeiterListe();
+  } catch (err) {
+    showError(err);
+  }
+});
+
+init();
 </script>
 
 </body>
