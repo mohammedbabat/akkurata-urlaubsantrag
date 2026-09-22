@@ -200,7 +200,7 @@
 
   <div id="tab-neuerAntrag" class="tab-content" style="display:none;">
     <div class="card">
-      <h2>Neuer Urlaubsantrag</h2>
+      <h2 id="neuerAntragTitel">Neuer Urlaubsantrag</h2>
       <div class="row">
         <div>
           <label>Von</label>
@@ -467,10 +467,35 @@ async function loadUebersichtUndHistorie() {
 
     listEl.innerHTML = items.map(item => {
       const f = item.fields;
+      window.historieItemsMap = window.historieItemsMap || {};
+      window.historieItemsMap[item.id] = f;
+
       const statusSuffix = (f.Status || "Ausstehend").replace(/\s/g, "");
       const statusClass = "status-" + statusSuffix;
       const kommentarZeile = (f.Status === "Abgelehnt" && f.GenehmigerKommentar)
         ? `<div class="antrag-kommentar">${f.GenehmigerKommentar}</div>` : "";
+
+      let aktionen = "";
+      if (f.Status === "Ausstehend") {
+        aktionen = `
+          <div class="btn-row">
+            <button onclick="historieBearbeiten('${item.id}')" style="background:var(--primary);">Bearbeiten</button>
+            <button class="reject" onclick="zurueckziehen('${item.id}')">Zurückziehen</button>
+          </div>`;
+      } else if (f.Status === "Genehmigt") {
+        aktionen = `
+          <div class="btn-row">
+            <button class="reject" onclick="stornoBeantragen('${item.id}')">Storno beantragen</button>
+          </div>`;
+      } else if (f.Status === "Storno beantragt") {
+        aktionen = `<div class="antrag-meta" style="margin-top:8px;">Storno wartet auf Genehmigung.</div>`;
+      } else if (f.Status === "Abgelehnt" || f.Status === "Storniert") {
+        aktionen = `
+          <div class="btn-row">
+            <button style="background:var(--primary);" onclick="historieErneutBeantragen('${item.id}')">Erneut beantragen</button>
+          </div>`;
+      }
+
       return `
         <div class="antrag-item border-${statusSuffix}">
           <div class="antrag-item-top">
@@ -481,6 +506,7 @@ async function loadUebersichtUndHistorie() {
             <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
           </div>
           ${kommentarZeile}
+          ${aktionen}
         </div>
       `;
     }).join("");
@@ -493,6 +519,23 @@ async function loadUebersichtUndHistorie() {
 // ============================================================
 // ANTRAG ABSENDEN
 // ============================================================
+function historieBearbeiten(itemId) {
+  const f = window.historieItemsMap[itemId];
+  starteBearbeitung(itemId, isoZuDateInput(f.VonDatum), isoZuDateInput(f.BisDatum), f.Urlaubsart, f.Kommentar);
+}
+
+function historieErneutBeantragen(itemId) {
+  const f = window.historieItemsMap[itemId];
+  starteErneuteBeantragung(isoZuDateInput(f.VonDatum), isoZuDateInput(f.BisDatum), f.Urlaubsart, f.Kommentar);
+}
+
+function isoZuDateInput(iso) {
+  if (!iso) return "";
+  return iso.split("T")[0];
+}
+
+let editItemId = null; // gesetzt, wenn gerade ein bestehender Antrag bearbeitet wird
+
 document.getElementById("submitBtn").addEventListener("click", async () => {
   const von = document.getElementById("vonDatum").value;
   const bis = document.getElementById("bisDatum").value;
@@ -506,26 +549,34 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
 
   const btn = document.getElementById("submitBtn");
   btn.disabled = true;
-  btn.textContent = "Wird gesendet...";
+  btn.textContent = editItemId ? "Wird gespeichert..." : "Wird gesendet...";
 
   try {
     const tage = berechneTage(von, bis);
-    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items`, {
-      method: "POST",
-      body: JSON.stringify({
-        fields: {
-          Title: `Antrag-${Date.now()}`,
-          AntragstellerEmail: currentAccount.username,
-          AntragstellerName: currentAccount.name || currentAccount.username,
-          VonDatum: new Date(von).toISOString(),
-          BisDatum: new Date(bis).toISOString(),
-          AnzahlTage: tage,
-          Urlaubsart: urlaubsart,
-          Kommentar: kommentar,
-          Status: "Ausstehend"
-        }
-      })
-    });
+    const fields = {
+      VonDatum: new Date(von).toISOString(),
+      BisDatum: new Date(bis).toISOString(),
+      AnzahlTage: tage,
+      Urlaubsart: urlaubsart,
+      Kommentar: kommentar
+    };
+
+    if (editItemId) {
+      await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${editItemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ fields })
+      });
+      beendeBearbeitungsModus();
+    } else {
+      fields.Title = `Antrag-${Date.now()}`;
+      fields.AntragstellerEmail = currentAccount.username;
+      fields.AntragstellerName = currentAccount.name || currentAccount.username;
+      fields.Status = "Ausstehend";
+      await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items`, {
+        method: "POST",
+        body: JSON.stringify({ fields })
+      });
+    }
 
     document.getElementById("vonDatum").value = "";
     document.getElementById("bisDatum").value = "";
@@ -535,9 +586,60 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     showError(err);
   } finally {
     btn.disabled = false;
-    btn.textContent = "Antrag senden";
+    btn.textContent = editItemId ? "Änderungen speichern" : "Antrag senden";
   }
 });
+
+function beendeBearbeitungsModus() {
+  editItemId = null;
+  document.getElementById("submitBtn").textContent = "Antrag senden";
+  document.getElementById("neuerAntragTitel").textContent = "Neuer Urlaubsantrag";
+}
+
+function starteBearbeitung(itemId, von, bis, urlaubsart, kommentar) {
+  editItemId = itemId;
+  document.getElementById("vonDatum").value = von;
+  document.getElementById("bisDatum").value = bis;
+  document.getElementById("urlaubsart").value = urlaubsart;
+  document.getElementById("kommentar").value = kommentar || "";
+  document.getElementById("submitBtn").textContent = "Änderungen speichern";
+  document.getElementById("neuerAntragTitel").textContent = "Antrag bearbeiten";
+  document.querySelector('.tab-btn[data-tab="neuerAntrag"]').click();
+}
+
+function starteErneuteBeantragung(von, bis, urlaubsart, kommentar) {
+  editItemId = null;
+  document.getElementById("vonDatum").value = von;
+  document.getElementById("bisDatum").value = bis;
+  document.getElementById("urlaubsart").value = urlaubsart;
+  document.getElementById("kommentar").value = kommentar || "";
+  document.getElementById("submitBtn").textContent = "Antrag senden";
+  document.getElementById("neuerAntragTitel").textContent = "Neuer Urlaubsantrag";
+  document.querySelector('.tab-btn[data-tab="neuerAntrag"]').click();
+}
+
+async function zurueckziehen(itemId) {
+  if (!confirm("Diesen offenen Antrag zurückziehen? Er wird endgültig gelöscht.")) return;
+  try {
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, { method: "DELETE" });
+    loadUebersichtUndHistorie();
+  } catch (err) {
+    showError(err);
+  }
+}
+
+async function stornoBeantragen(itemId) {
+  if (!confirm("Storno für diesen bereits genehmigten Antrag beantragen? Die Genehmiger müssen dem Storno zustimmen.")) return;
+  try {
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ fields: { Status: "Storno beantragt", GenehmigtVon: "" } })
+    });
+    loadUebersichtUndHistorie();
+  } catch (err) {
+    showError(err);
+  }
+}
 
 // ============================================================
 // ADMIN-STATUS PRÜFEN
@@ -565,6 +667,7 @@ async function verarbeiteEntscheidung(itemId, entscheidung) {
   const genehmigerListe = await getAktiveGenehmiger();
   const current = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`);
   const f = current.fields;
+  const istStorno = f.Status === "Storno beantragt";
 
   const name = currentAccount.name || currentAccount.username;
   const email = currentAccount.username;
@@ -575,14 +678,16 @@ async function verarbeiteEntscheidung(itemId, entscheidung) {
   const updateFields = { GenehmigtVon: genehmigtVon };
 
   if (entscheidung === "abgelehnt") {
-    updateFields.Status = "Abgelehnt";
+    // Bei Storno-Anfrage: Ablehnung heisst, der Urlaub bleibt genehmigt (Storno abgelehnt)
+    updateFields.Status = istStorno ? "Genehmigt" : "Abgelehnt";
     updateFields.Genehmigtam = new Date().toISOString();
   } else {
     const anzahlGenehmigt = genehmigtVon.split("\n").filter(z => z.includes(": genehmigt,")).length;
     if (anzahlGenehmigt >= genehmigerListe.length) {
-      updateFields.Status = "Genehmigt";
+      updateFields.Status = istStorno ? "Storniert" : "Genehmigt";
       updateFields.Genehmigtam = new Date().toISOString();
     }
+    // sonst bleibt der aktuelle Status (Ausstehend / Storno beantragt), weitere Genehmiger muessen noch ran
   }
 
   await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, {
@@ -590,7 +695,7 @@ async function verarbeiteEntscheidung(itemId, entscheidung) {
     body: JSON.stringify({ fields: updateFields })
   });
 
-  return updateFields.Status || "Ausstehend";
+  return updateFields.Status || f.Status || "Ausstehend";
 }
 
 // ============================================================
@@ -611,7 +716,7 @@ async function loadGenehmigungAntrag(itemId) {
 
     if (!berechtigt) {
       showGenehmigungResult("Du bist nicht als Genehmiger hinterlegt und kannst diesen Antrag nicht bearbeiten.");
-    } else if (status !== "Ausstehend") {
+    } else if (status !== "Ausstehend" && status !== "Storno beantragt") {
       showGenehmigungResult(`Dieser Antrag wurde bereits final bearbeitet. Status: ${status}`);
     } else if (bereitsEntschieden) {
       showGenehmigungResult("Du hast zu diesem Antrag bereits eine Entscheidung abgegeben.");
@@ -662,7 +767,7 @@ async function entscheidenViaLink(itemId, entscheidung) {
 async function loadAdminOffeneAntraege() {
   const el = document.getElementById("adminOffeneAntraege");
   try {
-    const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/Status eq 'Ausstehend'`);
+    const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/Status eq 'Ausstehend' or fields/Status eq 'Storno beantragt'`);
     if (data.value.length === 0) {
       el.innerHTML = "<p>Keine offenen Anträge.</p>";
       return;
@@ -673,19 +778,21 @@ async function loadAdminOffeneAntraege() {
       const f = item.fields;
       const email = currentAccount.username.toLowerCase();
       const bereitsEntschieden = (f.GenehmigtVon || "").toLowerCase().includes(email);
+      const istStorno = f.Status === "Storno beantragt";
+      const stornoBadge = istStorno ? `<span class="status status-Abgelehnt" style="margin-left:8px;">Storno-Anfrage</span>` : "";
       return `
         <div class="admin-item">
           <div class="antrag-item-top">
             <div>
-              <div><strong>${f.AntragstellerName || f.AntragstellerEmail}</strong></div>
+              <div><strong>${f.AntragstellerName || f.AntragstellerEmail}</strong>${stornoBadge}</div>
               <div class="antrag-meta">${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)} · ${f.Urlaubsart || ""} · ${f.AnzahlTage || "?"} Tage</div>
             </div>
           </div>
           ${bereitsEntschieden
             ? `<div class="antrag-meta" style="margin-top:8px;">Du hast bereits entschieden.</div>`
             : `<div class="btn-row">
-                 <button class="approve" onclick="adminEntscheiden('${item.id}', 'genehmigt')">Genehmigen</button>
-                 <button class="reject" onclick="adminEntscheiden('${item.id}', 'abgelehnt')">Ablehnen</button>
+                 <button class="approve" onclick="adminEntscheiden('${item.id}', 'genehmigt')">${istStorno ? "Storno genehmigen" : "Genehmigen"}</button>
+                 <button class="reject" onclick="adminEntscheiden('${item.id}', 'abgelehnt')">${istStorno ? "Storno ablehnen" : "Ablehnen"}</button>
                </div>`
           }
         </div>
