@@ -71,6 +71,14 @@
     display: none; background: #f8d7da; color: #721c24; padding: 12px;
     border-radius: 6px; margin: 16px auto; max-width: 640px;
   }
+  #genehmigungScreen { display: none; max-width: 640px; margin: 24px auto; padding: 0 16px; }
+  .detail-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+  .detail-row span:first-child { color: #888; }
+  button.approve { background: #2e7d32; }
+  button.reject { background: #c62828; }
+  .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+  .btn-row button { flex: 1; color: white; border: none; padding: 10px; border-radius: 6px; font-size: 14px; cursor: pointer; }
+  #genehmigungResult { display: none; text-align: center; padding: 20px; }
 </style>
 </head>
 <body>
@@ -122,6 +130,18 @@
 
 </main>
 
+<div id="genehmigungScreen">
+  <div class="card">
+    <h2>Genehmigungsanfrage</h2>
+    <div id="genehmigungDetails">Lade Antrag...</div>
+    <div class="btn-row" id="genehmigungButtons" style="display:none;">
+      <button class="approve" id="approveBtn">Genehmigen</button>
+      <button class="reject" id="rejectBtn">Ablehnen</button>
+    </div>
+  </div>
+  <div class="card" id="genehmigungResult"></div>
+</div>
+
 <script>
 // ============================================================
 // KONFIGURATION
@@ -140,11 +160,16 @@ const msalConfig = {
 
 const SITE_PATH = "akkuratatreuhand.sharepoint.com:/sites/Akkurata-Urlaubsantrag:";
 const LIST_ID_URLAUBSANTRAEGE = "41e433a3-8e9d-4aad-bdff-208eaa727281";
+const LIST_ID_GENEHMIGER = "79e08655-41a1-450c-89fb-805deedea0e9";
 
 const graphScopes = ["Sites.ReadWrite.All"];
 
 const msalInstance = new msal.PublicClientApplication(msalConfig);
 let currentAccount = null;
+
+// Antrag-ID aus der URL vor dem Login-Redirect sichern (geht sonst beim Redirect verloren)
+const antragIdFromUrl = new URLSearchParams(window.location.search).get("antrag");
+if (antragIdFromUrl) sessionStorage.setItem("pendingAntragId", antragIdFromUrl);
 
 // ============================================================
 // LOGIN / LOGOUT
@@ -156,8 +181,18 @@ async function init() {
 
   if (accounts.length > 0) {
     currentAccount = accounts[0];
-    showApp();
-    loadAntraege();
+
+    const antragId = antragIdFromUrl || sessionStorage.getItem("pendingAntragId");
+    if (antragId) {
+      sessionStorage.removeItem("pendingAntragId");
+      document.getElementById("userInfo").style.display = "flex";
+      document.getElementById("userName").textContent = currentAccount.name || currentAccount.username;
+      document.getElementById("genehmigungScreen").style.display = "block";
+      loadGenehmigungAntrag(antragId);
+    } else {
+      showApp();
+      loadAntraege();
+    }
   }
 }
 
@@ -318,6 +353,102 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
 });
 
 init();
+
+// ============================================================
+// GENEHMIGUNGS-ANSICHT
+// ============================================================
+async function loadGenehmigungAntrag(itemId) {
+  const detailsEl = document.getElementById("genehmigungDetails");
+  try {
+    const item = await graphFetch(
+      `/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`
+    );
+    const genehmiger = await graphFetch(
+      `/sites/${SITE_PATH}/lists/${LIST_ID_GENEHMIGER}/items?expand=fields&$filter=fields/Aktiv eq 1`
+    );
+
+    renderGenehmigungDetails(item.fields);
+
+    const email = currentAccount.username.toLowerCase();
+    const istBerechtigt = genehmiger.value.some(g => (g.fields.Email || "").toLowerCase() === email);
+    const bereitsEntschieden = (item.fields.GenehmigtVon || "").toLowerCase().includes(email);
+    const status = item.fields.Status || "Ausstehend";
+
+    if (!istBerechtigt) {
+      showGenehmigungResult("Du bist nicht als Genehmiger hinterlegt und kannst diesen Antrag nicht bearbeiten.");
+    } else if (status !== "Ausstehend") {
+      showGenehmigungResult(`Dieser Antrag wurde bereits final bearbeitet. Status: ${status}`);
+    } else if (bereitsEntschieden) {
+      showGenehmigungResult("Du hast zu diesem Antrag bereits eine Entscheidung abgegeben.");
+    } else {
+      document.getElementById("genehmigungButtons").style.display = "flex";
+      document.getElementById("approveBtn").onclick = () => entscheiden(itemId, "genehmigt", genehmiger.value);
+      document.getElementById("rejectBtn").onclick = () => entscheiden(itemId, "abgelehnt", genehmiger.value);
+    }
+  } catch (err) {
+    showError(err);
+    detailsEl.innerHTML = "<p>Antrag konnte nicht geladen werden.</p>";
+  }
+}
+
+function renderGenehmigungDetails(f) {
+  document.getElementById("genehmigungDetails").innerHTML = `
+    <div class="detail-row"><span>Mitarbeiter</span><span>${f.AntragstellerName || f.AntragstellerEmail}</span></div>
+    <div class="detail-row"><span>Zeitraum</span><span>${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)}</span></div>
+    <div class="detail-row"><span>Tage</span><span>${f.AnzahlTage || "?"}</span></div>
+    <div class="detail-row"><span>Urlaubsart</span><span>${f.Urlaubsart || ""}</span></div>
+    <div class="detail-row"><span>Kommentar</span><span>${f.Kommentar || "–"}</span></div>
+  `;
+}
+
+function showGenehmigungResult(text) {
+  document.getElementById("genehmigungButtons").style.display = "none";
+  const box = document.getElementById("genehmigungResult");
+  box.style.display = "block";
+  box.textContent = text;
+}
+
+async function entscheiden(itemId, entscheidung, aktiveGenehmiger) {
+  document.getElementById("genehmigungButtons").style.display = "none";
+  try {
+    // Aktuellen Stand frisch holen, um nicht mit veraltetem GenehmigtVon zu ueberschreiben
+    const current = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}?expand=fields`);
+    const f = current.fields;
+
+    const name = currentAccount.name || currentAccount.username;
+    const email = currentAccount.username;
+    const datum = new Date().toLocaleDateString("de-DE");
+    const neuerEintrag = `${name} (${email}): ${entscheidung}, ${datum}`;
+    const genehmigtVon = f.GenehmigtVon ? f.GenehmigtVon + "\n" + neuerEintrag : neuerEintrag;
+
+    const updateFields = { GenehmigtVon: genehmigtVon };
+
+    if (entscheidung === "abgelehnt") {
+      updateFields.Status = "Abgelehnt";
+      updateFields.Genehmigtam = new Date().toISOString();
+    } else {
+      const anzahlGenehmigt = genehmigtVon.split("\n").filter(z => z.includes(": genehmigt,")).length;
+      if (anzahlGenehmigt >= aktiveGenehmiger.length) {
+        updateFields.Status = "Genehmigt";
+        updateFields.Genehmigtam = new Date().toISOString();
+      }
+      // sonst bleibt Status "Ausstehend", weitere Genehmiger muessen noch entscheiden
+    }
+
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ fields: updateFields })
+    });
+
+    showGenehmigungResult(
+      entscheidung === "abgelehnt"
+        ? "Antrag wurde abgelehnt."
+        : (updateFields.Status === "Genehmigt" ? "Antrag wurde vollständig genehmigt." : "Deine Genehmigung wurde gespeichert. Weitere Genehmiger müssen noch entscheiden.")
+    );
+  } catch (err) {
+    showError(err);
+  }
+}
 </script>
 
 </body>
