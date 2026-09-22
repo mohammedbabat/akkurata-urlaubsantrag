@@ -191,8 +191,15 @@
         <input type="text" id="neuerMitarbeiterName" />
         <label>Jahresanspruch (Tage)</label>
         <input type="number" id="neuerMitarbeiterAnspruch" value="30" />
-        <button class="primary" id="neuerMitarbeiterBtn">Hinzufügen</button>
+        <button class="primary" id="neuerMitarbeiterBtn">Manuell hinzufügen</button>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>Aus Entra ID importieren</h2>
+      <p style="font-size:13px; color:#888; margin:-8px 0 12px;">Zeigt aktive Mitarbeiter-Konten aus dem Tenant, die noch nicht erfasst sind.</p>
+      <button class="primary" id="entraLadenBtn" style="margin-bottom:12px;">Mitarbeiter aus Entra ID laden</button>
+      <div id="entraUserListe"></div>
     </div>
   </div>
 
@@ -231,7 +238,7 @@ const LIST_ID_URLAUBSANTRAEGE = "41e433a3-8e9d-4aad-bdff-208eaa727281";
 const LIST_ID_GENEHMIGER = "79e08655-41a1-450c-89fb-805deedea0e9";
 const LIST_ID_MITARBEITER = "890b2bc5-a7fa-43de-a232-b52fec391c39";
 
-const graphScopes = ["Sites.ReadWrite.All"];
+const graphScopes = ["Sites.ReadWrite.All", "User.Read.All"];
 
 const msalInstance = new msal.PublicClientApplication(msalConfig);
 let currentAccount = null;
@@ -638,10 +645,14 @@ async function adminEntscheiden(itemId, entscheidung) {
 // ============================================================
 // ADMIN: MITARBEITER-JAHRESANSPRUCH VERWALTEN
 // ============================================================
+let erfassteMitarbeiterEmails = [];
+
 async function loadMitarbeiterListe() {
   const el = document.getElementById("mitarbeiterListe");
   try {
     const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items?expand=fields`);
+    erfassteMitarbeiterEmails = data.value.map(i => (i.fields.Email || "").toLowerCase());
+
     if (data.value.length === 0) {
       el.innerHTML = "<p>Noch keine Mitarbeiter erfasst.</p>";
       return;
@@ -653,11 +664,22 @@ async function loadMitarbeiterListe() {
         <span class="name">${item.fields.Title || ""} <span style="color:#aaa;">(${item.fields.Email || ""})</span></span>
         <input type="number" id="anspruch-${item.id}" value="${item.fields.JahresAnspruch || 0}" />
         <button onclick="speichereAnspruch('${item.id}')">Speichern</button>
+        <button onclick="loescheMitarbeiter('${item.id}')" style="background:#c62828;">Entfernen</button>
       </div>
     `).join("");
   } catch (err) {
     showError(err);
     el.innerHTML = "<p>Fehler beim Laden.</p>";
+  }
+}
+
+async function loescheMitarbeiter(itemId) {
+  if (!confirm("Diesen Mitarbeiter aus der Urlaubsverwaltung entfernen? Bestehende Anträge bleiben erhalten.")) return;
+  try {
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items/${itemId}`, { method: "DELETE" });
+    loadMitarbeiterListe();
+  } catch (err) {
+    showError(err);
   }
 }
 
@@ -670,6 +692,56 @@ async function speichereAnspruch(itemId) {
     });
   } catch (err) {
     showError(err);
+  }
+}
+
+// ============================================================
+// ADMIN: MITARBEITER AUS ENTRA ID IMPORTIEREN
+// ============================================================
+document.getElementById("entraLadenBtn").addEventListener("click", loadEntraUsers);
+
+async function loadEntraUsers() {
+  const el = document.getElementById("entraUserListe");
+  el.innerHTML = "Lade Entra-ID-Benutzer...";
+  try {
+    const data = await graphFetch(
+      `/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType&$filter=accountEnabled eq true and userType eq 'Member'&$top=999`
+    );
+
+    const kandidaten = data.value
+      .map(u => ({ name: u.displayName, email: (u.mail || u.userPrincipalName || "").toLowerCase() }))
+      .filter(u => u.email && !erfassteMitarbeiterEmails.includes(u.email))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    if (kandidaten.length === 0) {
+      el.innerHTML = "<p>Alle aktiven Mitarbeiter sind bereits erfasst.</p>";
+      return;
+    }
+
+    el.innerHTML = kandidaten.map(u => `
+      <div class="mitarbeiter-row">
+        <span class="name">${u.name} <span style="color:#aaa;">(${u.email})</span></span>
+        <button onclick="entraMitarbeiterUebernehmen('${u.name.replace(/'/g, "&#39;")}', '${u.email}', this)">Hinzufügen</button>
+      </div>
+    `).join("");
+  } catch (err) {
+    showError(err);
+    el.innerHTML = "<p>Fehler beim Laden aus Entra ID.</p>";
+  }
+}
+
+async function entraMitarbeiterUebernehmen(name, email, btnEl) {
+  btnEl.disabled = true;
+  try {
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items`, {
+      method: "POST",
+      body: JSON.stringify({ fields: { Title: name, Email: email, JahresAnspruch: 30 } })
+    });
+    await loadMitarbeiterListe();
+    loadEntraUsers();
+  } catch (err) {
+    showError(err);
+    btnEl.disabled = false;
   }
 }
 
