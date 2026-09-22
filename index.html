@@ -176,7 +176,10 @@
 
   <div id="tab-uebersicht" class="tab-content">
     <div class="card">
-      <h2>Meine Urlaubsübersicht (<span id="aktuellesJahr"></span>)</h2>
+      <h2 style="display:flex; align-items:center; justify-content:space-between; gap:12px;">
+        <span>Meine Urlaubsübersicht</span>
+        <select id="uebersichtJahrSelect" style="width:auto; margin:0; padding:6px 10px; font-size:13px; font-weight:600;"></select>
+      </h2>
       <div class="rest-ring-wrap">
         <svg width="110" height="110" viewBox="0 0 110 110">
           <circle cx="55" cy="55" r="46" fill="none" stroke="var(--border)" stroke-width="12" />
@@ -418,10 +421,11 @@ function berechneTage(von, bis) {
 // ============================================================
 // ÜBERSICHT + HISTORIE (eigene Anträge)
 // ============================================================
+let meineAntraegeCache = [];
+let meinJahresAnspruch = 0;
+
 async function loadUebersichtUndHistorie() {
   const listEl = document.getElementById("antraegeList");
-  const jahr = new Date().getFullYear();
-  document.getElementById("aktuellesJahr").textContent = jahr;
 
   try {
     const email = currentAccount.username;
@@ -433,39 +437,63 @@ async function loadUebersichtUndHistorie() {
 
     const items = antraege.value;
     items.sort((a, b) => new Date(b.fields.VonDatum) - new Date(a.fields.VonDatum));
+    meineAntraegeCache = items;
+    meinJahresAnspruch = anspruchData.value.length > 0 ? (anspruchData.value[0].fields.JahresAnspruch || 0) : 0;
 
-    const jahresAnspruch = anspruchData.value.length > 0 ? (anspruchData.value[0].fields.JahresAnspruch || 0) : 0;
+    // Jahres-Dropdown befuellen: alle Jahre, in denen Antraege liegen, plus das laufende Jahr
+    const heute = new Date().getFullYear();
+    const jahreSet = new Set([heute]);
+    items.forEach(item => jahreSet.add(new Date(item.fields.VonDatum).getFullYear()));
+    const jahre = Array.from(jahreSet).sort((a, b) => b - a);
 
-    let genommen = 0, ausstehend = 0, storniert = 0, abgelehnt = 0;
-    items.forEach(item => {
-      const f = item.fields;
-      if (new Date(f.VonDatum).getFullYear() !== jahr && f.Status !== "Ausstehend") return;
-      const tage = f.AnzahlTage || 0;
-      if (f.Status === "Genehmigt") genommen += tage;
-      else if (f.Status === "Ausstehend") ausstehend += tage;
-      else if (f.Status === "Storniert" || f.Status === "Storno beantragt") storniert += tage;
-      else if (f.Status === "Abgelehnt") abgelehnt += tage;
-    });
+    const select = document.getElementById("uebersichtJahrSelect");
+    const bisherGewaehlt = select.value ? Number(select.value) : heute;
+    select.innerHTML = jahre.map(j => `<option value="${j}">${j}</option>`).join("");
+    select.value = jahre.includes(bisherGewaehlt) ? bisherGewaehlt : heute;
+    select.onchange = () => renderUebersichtStats(Number(select.value));
 
-    document.getElementById("statAnspruch").textContent = jahresAnspruch || "–";
-    const rest = jahresAnspruch ? (jahresAnspruch - genommen - ausstehend) : null;
-    document.getElementById("statRest").textContent = rest !== null ? rest : "–";
-    document.getElementById("statGenommen").textContent = genommen;
-    document.getElementById("statAusstehend").textContent = ausstehend;
-    document.getElementById("statStorniert").textContent = storniert;
-    document.getElementById("statAbgelehnt").textContent = abgelehnt;
-
-    // Fortschrittsring befuellen (Umfang = 2 * PI * 46 ≈ 289)
-    const ring = document.getElementById("restRingCircle");
-    const anteil = jahresAnspruch ? Math.max(0, Math.min(1, rest / jahresAnspruch)) : 0;
-    ring.style.strokeDashoffset = (289 - anteil * 289).toFixed(1);
+    renderUebersichtStats(Number(select.value));
 
     if (items.length === 0) {
       listEl.innerHTML = "<p>Noch keine Anträge gestellt.</p>";
       return;
     }
 
-    listEl.innerHTML = items.map(item => {
+    renderHistorieListe(items);
+  } catch (err) {
+    showError(err);
+    listEl.innerHTML = "<p>Fehler beim Laden.</p>";
+  }
+}
+
+function renderUebersichtStats(jahr) {
+  let genommen = 0, ausstehend = 0, storniert = 0, abgelehnt = 0;
+  meineAntraegeCache.forEach(item => {
+    const f = item.fields;
+    if (new Date(f.VonDatum).getFullYear() !== jahr) return;
+    const tage = f.AnzahlTage || 0;
+    if (f.Status === "Genehmigt") genommen += tage;
+    else if (f.Status === "Ausstehend") ausstehend += tage;
+    else if (f.Status === "Storniert" || f.Status === "Storno beantragt") storniert += tage;
+    else if (f.Status === "Abgelehnt") abgelehnt += tage;
+  });
+
+  document.getElementById("statAnspruch").textContent = meinJahresAnspruch || "–";
+  const rest = meinJahresAnspruch ? (meinJahresAnspruch - genommen - ausstehend) : null;
+  document.getElementById("statRest").textContent = rest !== null ? rest : "–";
+  document.getElementById("statGenommen").textContent = genommen;
+  document.getElementById("statAusstehend").textContent = ausstehend;
+  document.getElementById("statStorniert").textContent = storniert;
+  document.getElementById("statAbgelehnt").textContent = abgelehnt;
+
+  const ring = document.getElementById("restRingCircle");
+  const anteil = meinJahresAnspruch ? Math.max(0, Math.min(1, rest / meinJahresAnspruch)) : 0;
+  ring.style.strokeDashoffset = (289 - anteil * 289).toFixed(1);
+}
+function renderHistorieListe(items) {
+  const listEl = document.getElementById("antraegeList");
+
+  listEl.innerHTML = items.map(item => {
       const f = item.fields;
       window.historieItemsMap = window.historieItemsMap || {};
       window.historieItemsMap[item.id] = f;
@@ -509,12 +537,9 @@ async function loadUebersichtUndHistorie() {
           ${aktionen}
         </div>
       `;
-    }).join("");
-  } catch (err) {
-    showError(err);
-    listEl.innerHTML = "<p>Fehler beim Laden.</p>";
-  }
+  }).join("");
 }
+
 
 // ============================================================
 // ANTRAG ABSENDEN
