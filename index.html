@@ -150,6 +150,28 @@
   .mitarbeiter-row input { width: 70px; margin: 0; padding: 6px 8px; }
   .mitarbeiter-row button { background: var(--primary); color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
   #adminSection { display: none; margin-top: 24px; }
+  .kal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .kal-weekday { font-size: 11px; color: var(--text-soft); text-align: center; font-weight: 600; padding-bottom: 4px; }
+  .kal-day {
+    aspect-ratio: 1; border-radius: 8px; background: var(--bg); font-size: 11px; padding: 4px;
+    color: var(--text-soft); cursor: default; display: flex; flex-direction: column; gap: 2px;
+  }
+  .kal-day.hat-eintrag { cursor: pointer; }
+  .kal-day.andere-monat { opacity: 0.35; }
+  .kal-bar { height: 5px; border-radius: 2px; }
+  .kal-bar.genehmigt { background: var(--primary); }
+  .kal-bar.ausstehend { background: var(--warning); }
+  .team-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .team-row:last-child { border-bottom: none; }
+  .team-avatar {
+    width: 36px; height: 36px; border-radius: 50%; background: var(--primary-light); color: var(--primary-dark);
+    display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700; flex-shrink: 0;
+  }
+  .team-row .team-name { font-size: 14px; font-weight: 600; }
+  .team-row .team-meta { font-size: 11.5px; color: var(--text-soft); }
+  .team-row .team-stat { text-align: right; min-width: 46px; }
+  .team-row .team-stat .num { font-size: 15px; font-weight: 700; }
+  .team-row .team-stat .lbl { font-size: 10px; color: var(--text-soft); text-transform: uppercase; }
 
   #adminSection > h2 { font-size: 16px; margin-bottom: 12px; }
 </style>
@@ -251,6 +273,28 @@
     </div>
 
     <div class="card">
+      <h2>Team-Übersicht</h2>
+      <div id="adminTeamUebersicht">Lade...</div>
+    </div>
+
+    <div class="card">
+      <h2 style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Team-Kalender</span>
+        <span style="display:flex; align-items:center; gap:10px; font-weight:500; font-size:14px;">
+          <button onclick="kalenderMonatWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
+          <span id="kalenderMonatLabel" style="min-width:110px; text-align:center; color:var(--text);"></span>
+          <button onclick="kalenderMonatWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
+        </span>
+      </h2>
+      <div id="teamKalenderGrid"></div>
+      <div style="display:flex; gap:16px; margin-top:14px; font-size:12px; color:var(--text-soft);">
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:9px;height:9px;background:var(--primary);border-radius:2px;display:inline-block;"></span> Genehmigt</div>
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:9px;height:9px;background:var(--warning);border-radius:2px;display:inline-block;"></span> Ausstehend</div>
+      </div>
+      <div id="teamKalenderAuswahl" style="margin-top:14px; font-size:13px;"></div>
+    </div>
+
+    <div class="card">
       <h2>Mitarbeiter-Jahresanspruch</h2>
       <div id="mitarbeiterListe">Lade...</div>
       <div style="margin-top:16px; border-top:1px solid #f0f0f0; padding-top:16px;">
@@ -343,6 +387,7 @@ async function init() {
         document.getElementById("adminTabBtn").style.display = "inline-block";
         loadAdminOffeneAntraege();
         loadMitarbeiterListe();
+        loadAdminTeamDaten();
       }
     }
   }
@@ -798,6 +843,145 @@ async function entscheidenViaLink(itemId, entscheidung) {
 // ============================================================
 // ADMIN: OFFENE ANTRÄGE (alle Mitarbeiter, direkt im Dashboard)
 // ============================================================
+// ============================================================
+// ADMIN: TEAM-ÜBERSICHT + TEAM-KALENDER
+// ============================================================
+let adminAlleMitarbeiter = [];
+let adminAlleAntraege = [];
+let kalenderMonat = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+
+async function loadAdminTeamDaten() {
+  try {
+    const [mitarbeiter, antraege] = await Promise.all([
+      graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items?expand=fields`),
+      graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/Status eq 'Genehmigt' or fields/Status eq 'Ausstehend' or fields/Status eq 'Storno beantragt'`)
+    ]);
+    adminAlleMitarbeiter = mitarbeiter.value;
+    adminAlleAntraege = antraege.value;
+    renderAdminTeamUebersicht();
+    renderTeamKalender();
+  } catch (err) {
+    showError(err);
+  }
+}
+
+function renderAdminTeamUebersicht() {
+  const el = document.getElementById("adminTeamUebersicht");
+  if (adminAlleMitarbeiter.length === 0) {
+    el.innerHTML = "<p>Noch keine Mitarbeiter erfasst.</p>";
+    return;
+  }
+  const jahr = new Date().getFullYear();
+
+  const rows = adminAlleMitarbeiter.map(m => {
+    const email = (m.fields.Email || "").toLowerCase();
+    const name = m.fields.Title || email;
+    const anspruch = m.fields.JahresAnspruch || 0;
+
+    let genommen = 0, ausstehend = 0;
+    adminAlleAntraege.forEach(a => {
+      const f = a.fields;
+      if ((f.AntragstellerEmail || "").toLowerCase() !== email) return;
+      if (new Date(f.VonDatum).getFullYear() !== jahr) return;
+      if (f.Status === "Genehmigt") genommen += (f.AnzahlTage || 0);
+      else if (f.Status === "Ausstehend" || f.Status === "Storno beantragt") ausstehend += (f.AnzahlTage || 0);
+    });
+    const rest = anspruch - genommen - ausstehend;
+    const initialen = name.split(" ").map(t => t[0]).join("").slice(0, 2).toUpperCase();
+
+    return `
+      <div class="team-row">
+        <div class="team-avatar">${initialen}</div>
+        <div style="flex:1; min-width:0;">
+          <div class="team-name">${name}</div>
+          <div class="team-meta">${anspruch} Tage/Jahr · ${email}</div>
+        </div>
+        <div class="team-stat"><div class="num">${rest}</div><div class="lbl">Rest</div></div>
+        <div class="team-stat"><div class="num" style="color:var(--success);">${genommen}</div><div class="lbl">Genommen</div></div>
+        <div class="team-stat"><div class="num" style="color:var(--warning);">${ausstehend}</div><div class="lbl">Wartend</div></div>
+      </div>
+    `;
+  }).join("");
+
+  el.innerHTML = rows;
+}
+
+function kalenderMonatWechseln(delta) {
+  kalenderMonat = new Date(kalenderMonat.getFullYear(), kalenderMonat.getMonth() + delta, 1);
+  document.getElementById("teamKalenderAuswahl").innerHTML = "";
+  renderTeamKalender();
+}
+
+function renderTeamKalender() {
+  const grid = document.getElementById("teamKalenderGrid");
+  const monatsNamen = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  document.getElementById("kalenderMonatLabel").textContent = `${monatsNamen[kalenderMonat.getMonth()]} ${kalenderMonat.getFullYear()}`;
+
+  const jahr = kalenderMonat.getFullYear();
+  const monat = kalenderMonat.getMonth();
+  const ersterTag = new Date(jahr, monat, 1);
+  // Montag als Wochenstart: JS-Wochentag (0=So) auf 0=Mo verschieben
+  const startOffset = (ersterTag.getDay() + 6) % 7;
+  const startDatum = new Date(jahr, monat, 1 - startOffset);
+
+  const wochentage = ["Mo","Di","Mi","Do","Fr","Sa","So"];
+  let html = wochentage.map(w => `<div class="kal-weekday">${w}</div>`).join("");
+
+  for (let i = 0; i < 42; i++) {
+    const tag = new Date(startDatum);
+    tag.setDate(startDatum.getDate() + i);
+    const istAndererMonat = tag.getMonth() !== monat;
+
+    const eintraege = adminAlleAntraege.filter(a => {
+      const von = new Date(a.fields.VonDatum); von.setHours(0,0,0,0);
+      const bis = new Date(a.fields.BisDatum); bis.setHours(0,0,0,0);
+      const t = new Date(tag); t.setHours(0,0,0,0);
+      return t >= von && t <= bis;
+    });
+
+    const hatGenehmigt = eintraege.some(e => e.fields.Status === "Genehmigt");
+    const hatAusstehend = eintraege.some(e => e.fields.Status === "Ausstehend" || e.fields.Status === "Storno beantragt");
+
+    const balken = [
+      hatGenehmigt ? '<div class="kal-bar genehmigt"></div>' : '',
+      hatAusstehend ? '<div class="kal-bar ausstehend"></div>' : ''
+    ].join("");
+
+    const tagIso = tag.toISOString().split("T")[0];
+    html += `
+      <div class="kal-day ${istAndererMonat ? 'andere-monat' : ''} ${eintraege.length ? 'hat-eintrag' : ''}"
+           ${eintraege.length ? `onclick="zeigeKalenderTag('${tagIso}')"` : ''}>
+        <div>${tag.getDate()}</div>
+        ${balken}
+      </div>
+    `;
+  }
+
+  grid.className = "kal-grid";
+  grid.innerHTML = html;
+}
+
+function zeigeKalenderTag(tagIso) {
+  const tag = new Date(tagIso + "T00:00:00");
+  const eintraege = adminAlleAntraege.filter(a => {
+    const von = new Date(a.fields.VonDatum); von.setHours(0,0,0,0);
+    const bis = new Date(a.fields.BisDatum); bis.setHours(0,0,0,0);
+    return tag >= von && tag <= bis;
+  });
+
+  const el = document.getElementById("teamKalenderAuswahl");
+  const liste = eintraege.map(e => {
+    const f = e.fields;
+    const statusClass = "status-" + (f.Status || "").replace(/\s/g, "");
+    return `<div style="display:flex; justify-content:space-between; align-items:center; padding:6px 0; border-bottom:1px solid var(--border);">
+      <span>${f.AntragstellerName || f.AntragstellerEmail}</span>
+      <span class="status ${statusClass}">${f.Status}</span>
+    </div>`;
+  }).join("");
+
+  el.innerHTML = `<strong style="font-size:13px;">${formatDate(tagIso)}</strong>${liste}`;
+}
+
 async function loadAdminOffeneAntraege() {
   const el = document.getElementById("adminOffeneAntraege");
   try {
@@ -842,6 +1026,7 @@ async function adminEntscheiden(itemId, entscheidung) {
   try {
     await verarbeiteEntscheidung(itemId, entscheidung);
     loadAdminOffeneAntraege();
+    loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   }
