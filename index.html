@@ -345,15 +345,27 @@
     </div>
 
     <div class="card">
-      <h2>Mitarbeiter-Jahresanspruch</h2>
+      <h2 style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Mitarbeiter-Jahresanspruch</span>
+        <select id="adminMitarbeiterJahrSelect" style="width:auto; margin:0; padding:6px 10px; font-size:13px; font-weight:600;"></select>
+      </h2>
       <div id="adminMitarbeiterListe">Lade...</div>
+      <button id="adminJahrUebernehmenBtn" style="margin-top:12px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer; font-family:inherit;"></button>
       <div style="margin-top:16px; border-top:1px solid #f0f0f0; padding-top:16px;">
         <label>Neuer Mitarbeiter – E-Mail</label>
         <input type="text" id="neuerMitarbeiterEmail" placeholder="vorname.nachname@akkurata-treuhand.de" />
         <label>Name</label>
         <input type="text" id="neuerMitarbeiterName" />
-        <label>Jahresanspruch (Tage)</label>
-        <input type="number" id="neuerMitarbeiterAnspruch" value="30" />
+        <div class="row">
+          <div>
+            <label>Jahr</label>
+            <input type="number" id="neuerMitarbeiterJahr" value="2026" />
+          </div>
+          <div>
+            <label>Jahresanspruch (Tage)</label>
+            <input type="number" id="neuerMitarbeiterAnspruch" value="30" />
+          </div>
+        </div>
         <button class="primary" id="neuerMitarbeiterBtn">Manuell hinzufügen</button>
       </div>
     </div>
@@ -421,15 +433,27 @@
     </div>
 
     <div class="card">
-      <h2>Mitarbeiter-Jahresanspruch</h2>
+      <h2 style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Mitarbeiter-Jahresanspruch</span>
+        <select id="hrMitarbeiterJahrSelect" style="width:auto; margin:0; padding:6px 10px; font-size:13px; font-weight:600;"></select>
+      </h2>
       <div id="hrMitarbeiterListe">Lade...</div>
+      <button id="hrJahrUebernehmenBtn" style="margin-top:12px; background:var(--bg); border:1px solid var(--border); color:var(--text); padding:8px 14px; border-radius:8px; font-size:13px; cursor:pointer; font-family:inherit;"></button>
       <div style="margin-top:16px; border-top:1px solid #f0f0f0; padding-top:16px;">
         <label>Neuer Mitarbeiter – E-Mail</label>
         <input type="text" id="hrNeuerMitarbeiterEmail" placeholder="vorname.nachname@akkurata-treuhand.de" />
         <label>Name</label>
         <input type="text" id="hrNeuerMitarbeiterName" />
-        <label>Jahresanspruch (Tage)</label>
-        <input type="number" id="hrNeuerMitarbeiterAnspruch" value="30" />
+        <div class="row">
+          <div>
+            <label>Jahr</label>
+            <input type="number" id="hrNeuerMitarbeiterJahr" value="2026" />
+          </div>
+          <div>
+            <label>Jahresanspruch (Tage)</label>
+            <input type="number" id="hrNeuerMitarbeiterAnspruch" value="30" />
+          </div>
+        </div>
         <button class="primary" id="hrNeuerMitarbeiterBtn">Manuell hinzufügen</button>
       </div>
     </div>
@@ -664,8 +688,7 @@ function berechneTage(von, bis) {
 // ÜBERSICHT + HISTORIE (eigene Anträge)
 // ============================================================
 let meineAntraegeCache = [];
-let meinJahresAnspruch = 0;
-let meinUebertrag = 0;
+let meinAnspruchProJahr = {}; // { 2026: {anspruch: 30, uebertrag: 5}, 2027: {...} }
 
 async function loadUebersichtUndHistorie() {
   const listEl = document.getElementById("antraegeList");
@@ -681,13 +704,18 @@ async function loadUebersichtUndHistorie() {
     const items = antraege.value;
     items.sort((a, b) => new Date(b.fields.VonDatum) - new Date(a.fields.VonDatum));
     meineAntraegeCache = items;
-    meinJahresAnspruch = anspruchData.value.length > 0 ? (anspruchData.value[0].fields.JahresAnspruch || 0) : 0;
-    meinUebertrag = anspruchData.value.length > 0 ? (anspruchData.value[0].fields.Uebertrag || 0) : 0;
 
-    // Jahres-Dropdown befuellen: alle Jahre, in denen Antraege liegen, plus das laufende Jahr
+    meinAnspruchProJahr = {};
+    anspruchData.value.forEach(a => {
+      const j = a.fields.Jahr;
+      if (j) meinAnspruchProJahr[j] = { anspruch: a.fields.JahresAnspruch || 0, uebertrag: a.fields.Uebertrag || 0 };
+    });
+
+    // Jahres-Dropdown befuellen: alle Jahre, in denen Antraege ODER ein Anspruchseintrag liegen, plus das laufende Jahr
     const heute = new Date().getFullYear();
     const jahreSet = new Set([heute]);
     items.forEach(item => jahreSet.add(new Date(item.fields.VonDatum).getFullYear()));
+    Object.keys(meinAnspruchProJahr).forEach(j => jahreSet.add(Number(j)));
     const jahre = Array.from(jahreSet).sort((a, b) => b - a);
 
     const select = document.getElementById("uebersichtJahrSelect");
@@ -727,10 +755,11 @@ function renderUebersichtStats(jahr) {
     else if (f.Status === "Abgelehnt") abgelehnt += tage;
   });
 
-  const effektiverAnspruch = meinJahresAnspruch + meinUebertrag;
-  document.getElementById("statAnspruch").textContent = meinUebertrag
-    ? `${meinJahresAnspruch} + ${meinUebertrag} Übertrag`
-    : (meinJahresAnspruch || "–");
+  const eintrag = meinAnspruchProJahr[jahr] || { anspruch: 0, uebertrag: 0 };
+  const effektiverAnspruch = eintrag.anspruch + eintrag.uebertrag;
+  document.getElementById("statAnspruch").textContent = eintrag.uebertrag
+    ? `${eintrag.anspruch} + ${eintrag.uebertrag} Übertrag`
+    : (eintrag.anspruch || "–");
   const rest = effektiverAnspruch ? (effektiverAnspruch - genommen - ausstehend) : null;
   document.getElementById("statRest").textContent = rest !== null ? rest : "–";
   document.getElementById("statGenommen").textContent = genommen;
@@ -1118,8 +1147,9 @@ async function ladeTeamKalenderFuerAlle() {
 
 function renderAdminTeamUebersicht() {
   const jahr = new Date().getFullYear();
+  const mitarbeiterDiesesJahr = adminAlleMitarbeiter.filter(m => m.fields.Jahr === jahr);
 
-  const rows = adminAlleMitarbeiter.map(m => {
+  const rows = mitarbeiterDiesesJahr.map(m => {
     const email = (m.fields.Email || "").toLowerCase();
     const name = m.fields.Title || email;
     const anspruch = m.fields.JahresAnspruch || 0;
@@ -1153,7 +1183,7 @@ function renderAdminTeamUebersicht() {
     `;
   }).join("");
 
-  const inhalt = adminAlleMitarbeiter.length === 0 ? "<p>Noch keine Mitarbeiter erfasst.</p>" : rows;
+  const inhalt = mitarbeiterDiesesJahr.length === 0 ? `<p>Noch keine Mitarbeiter für ${jahr} erfasst.</p>` : rows;
 
   ["admin", "hr"].forEach(prefix => {
     const el = document.getElementById(prefix + "TeamUebersicht");
@@ -1390,35 +1420,119 @@ async function adminEntscheiden(itemId, entscheidung) {
 // ============================================================
 let erfassteMitarbeiterEmails = [];
 
+let alleMitarbeiterEintraegeCache = []; // ungefiltert, alle Jahre
+let mitarbeiterAnzeigeJahr = new Date().getFullYear();
+
 async function loadMitarbeiterListe() {
   try {
     const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items?expand=fields`);
-    erfassteMitarbeiterEmails = data.value.map(i => (i.fields.Email || "").toLowerCase());
-    data.value.sort((a, b) => (a.fields.Title || "").localeCompare(b.fields.Title || ""));
+    alleMitarbeiterEintraegeCache = data.value;
+    erfassteMitarbeiterEmails = [...new Set(data.value.map(i => (i.fields.Email || "").toLowerCase()))];
 
-    const inhalt = data.value.length === 0 ? "<p>Noch keine Mitarbeiter erfasst.</p>" : data.value.map(item => `
-      <div class="mitarbeiter-row">
-        <span class="name">${item.fields.Title || ""} <span style="color:#aaa;">(${item.fields.Email || ""})</span></span>
-        <span style="font-size:11px; color:var(--text-soft);">Anspruch</span>
-        <input type="number" id="anspruch-${item.id}" value="${item.fields.JahresAnspruch || 0}" />
-        <span style="font-size:11px; color:var(--text-soft);">Übertrag</span>
-        <input type="number" id="uebertrag-${item.id}" value="${item.fields.Uebertrag || 0}" />
-        <button onclick="speichereAnspruch('${item.id}', this)">Speichern</button>
-        <button onclick="loescheMitarbeiter('${item.id}')" style="background:#c62828;">Entfernen</button>
-      </div>
-    `).join("");
+    // Jahres-Dropdown befuellen
+    const heute = new Date().getFullYear();
+    const jahreSet = new Set([heute]);
+    data.value.forEach(i => { if (i.fields.Jahr) jahreSet.add(i.fields.Jahr); });
+    const jahre = Array.from(jahreSet).sort((a, b) => b - a);
+    const optionsHtml = jahre.map(j => `<option value="${j}">${j}</option>`).join("");
 
     ["admin", "hr"].forEach(prefix => {
-      const el = document.getElementById(prefix + "MitarbeiterListe");
-      if (el) el.innerHTML = inhalt;
+      const select = document.getElementById(prefix + "MitarbeiterJahrSelect");
+      if (!select) return;
+      const bisherGewaehlt = select.value ? Number(select.value) : mitarbeiterAnzeigeJahr;
+      select.innerHTML = optionsHtml;
+      select.value = jahre.includes(bisherGewaehlt) ? bisherGewaehlt : heute;
+      select.onchange = () => { mitarbeiterAnzeigeJahr = Number(select.value); renderMitarbeiterListe(); };
     });
+
+    renderMitarbeiterListe();
+  } catch (err) {
+    showError(err);
+  }
+}
+
+function renderMitarbeiterListe() {
+  const jahr = mitarbeiterAnzeigeJahr;
+  const gefiltert = alleMitarbeiterEintraegeCache
+    .filter(i => i.fields.Jahr === jahr)
+    .sort((a, b) => (a.fields.Title || "").localeCompare(b.fields.Title || ""));
+
+  const inhalt = gefiltert.length === 0 ? `<p>Noch keine Mitarbeiter für ${jahr} erfasst.</p>` : gefiltert.map(item => `
+    <div class="mitarbeiter-row">
+      <span class="name">${item.fields.Title || ""} <span style="color:#aaa;">(${item.fields.Email || ""})</span></span>
+      <span style="font-size:11px; color:var(--text-soft);">Anspruch</span>
+      <input type="number" id="anspruch-${item.id}" value="${item.fields.JahresAnspruch || 0}" />
+      <span style="font-size:11px; color:var(--text-soft);">Übertrag</span>
+      <input type="number" id="uebertrag-${item.id}" value="${item.fields.Uebertrag || 0}" />
+      <button onclick="speichereAnspruch('${item.id}', this)">Speichern</button>
+      <button onclick="loescheMitarbeiter('${item.id}')" style="background:#c62828;">Entfernen</button>
+    </div>
+  `).join("");
+
+  ["admin", "hr"].forEach(prefix => {
+    const el = document.getElementById(prefix + "MitarbeiterListe");
+    if (el) el.innerHTML = inhalt;
+    const btn = document.getElementById(prefix + "JahrUebernehmenBtn");
+    if (btn) {
+      btn.textContent = `Alle aus ${jahr} ins Jahr ${jahr + 1} übernehmen`;
+      btn.onclick = () => jahrUebernehmen(jahr, jahr + 1);
+    }
+  });
+}
+
+async function jahrUebernehmen(vonJahr, nachJahr) {
+  const quelle = alleMitarbeiterEintraegeCache.filter(i => i.fields.Jahr === vonJahr);
+  if (quelle.length === 0) {
+    showError(new Error(`Keine Mitarbeiter für ${vonJahr} vorhanden.`));
+    return;
+  }
+  const bereitsVorhanden = new Set(
+    alleMitarbeiterEintraegeCache.filter(i => i.fields.Jahr === nachJahr).map(i => (i.fields.Email || "").toLowerCase())
+  );
+
+  if (!confirm(`${quelle.length} Mitarbeiter von ${vonJahr} nach ${nachJahr} übernehmen? Der Resturlaub aus ${vonJahr} wird automatisch als Übertrag berechnet.`)) return;
+
+  try {
+    for (const item of quelle) {
+      const email = (item.fields.Email || "").toLowerCase();
+      if (bereitsVorhanden.has(email)) continue; // schon vorhanden, ueberspringen
+
+      // Resturlaub aus dem Quelljahr berechnen (gleiche Logik wie Team-Uebersicht)
+      const anspruch = item.fields.JahresAnspruch || 0;
+      const alterUebertrag = item.fields.Uebertrag || 0;
+      let genommen = 0, ausstehend = 0;
+      adminAlleAntraege.forEach(a => {
+        const f = a.fields;
+        if ((f.AntragstellerEmail || "").toLowerCase() !== email) return;
+        if (new Date(f.VonDatum).getFullYear() !== vonJahr) return;
+        if (f.Urlaubsart === "Sonderurlaub") return;
+        if (f.Status === "Genehmigt") genommen += (f.AnzahlTage || 0);
+        else if (f.Status === "Ausstehend" || f.Status === "Storno beantragt") ausstehend += (f.AnzahlTage || 0);
+      });
+      const rest = Math.max(0, (anspruch + alterUebertrag) - genommen - ausstehend);
+
+      await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items`, {
+        method: "POST",
+        body: JSON.stringify({
+          fields: { Title: item.fields.Title, Email: item.fields.Email, Jahr: nachJahr, JahresAnspruch: anspruch, Uebertrag: rest }
+        })
+      });
+    }
+    await loadMitarbeiterListe();
+    mitarbeiterAnzeigeJahr = nachJahr;
+    ["admin", "hr"].forEach(prefix => {
+      const select = document.getElementById(prefix + "MitarbeiterJahrSelect");
+      if (select) select.value = nachJahr;
+    });
+    renderMitarbeiterListe();
+    loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   }
 }
 
 async function loescheMitarbeiter(itemId) {
-  if (!confirm("Diesen Mitarbeiter aus der Urlaubsverwaltung entfernen? Bestehende Anträge bleiben erhalten.")) return;
+  if (!confirm("Diesen Eintrag entfernen? Bestehende Anträge bleiben erhalten.")) return;
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items/${itemId}`, { method: "DELETE" });
     loadMitarbeiterListe();
@@ -1572,7 +1686,7 @@ async function entraMitarbeiterUebernehmen(name, email, btnEl) {
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items`, {
       method: "POST",
-      body: JSON.stringify({ fields: { Title: name, Email: email, JahresAnspruch: 30 } })
+      body: JSON.stringify({ fields: { Title: name, Email: email, Jahr: mitarbeiterAnzeigeJahr, JahresAnspruch: 30 } })
     });
     await loadMitarbeiterListe();
     loadEntraUsers();
@@ -1586,9 +1700,11 @@ async function entraMitarbeiterUebernehmen(name, email, btnEl) {
 async function neuerMitarbeiterHinzufuegen(prefix) {
   const emailEl = document.getElementById(prefix + "MitarbeiterEmail");
   const nameEl = document.getElementById(prefix + "MitarbeiterName");
+  const jahrEl = document.getElementById(prefix + "MitarbeiterJahr");
   const anspruchEl = document.getElementById(prefix + "MitarbeiterAnspruch");
   const email = emailEl.value.trim();
   const name = nameEl.value.trim();
+  const jahr = Number(jahrEl.value) || new Date().getFullYear();
   const anspruch = anspruchEl.value;
 
   if (!email || !name) {
@@ -1600,7 +1716,7 @@ async function neuerMitarbeiterHinzufuegen(prefix) {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items`, {
       method: "POST",
       body: JSON.stringify({
-        fields: { Title: name, Email: email, JahresAnspruch: Number(anspruch) }
+        fields: { Title: name, Email: email, Jahr: jahr, JahresAnspruch: Number(anspruch) }
       })
     });
     emailEl.value = "";
@@ -1616,6 +1732,12 @@ async function neuerMitarbeiterHinzufuegen(prefix) {
 document.getElementById("neuerMitarbeiterBtn").addEventListener("click", () => neuerMitarbeiterHinzufuegen("neuer"));
 const hrNeuerBtn = document.getElementById("hrNeuerMitarbeiterBtn");
 if (hrNeuerBtn) hrNeuerBtn.addEventListener("click", () => neuerMitarbeiterHinzufuegen("hrNeuer"));
+
+// Standard-Jahr in den "Neuer Mitarbeiter"-Formularen auf das laufende Jahr setzen
+["neuerMitarbeiterJahr", "hrNeuerMitarbeiterJahr"].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.value = new Date().getFullYear();
+});
 
 init();
 </script>
