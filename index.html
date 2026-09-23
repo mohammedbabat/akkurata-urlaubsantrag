@@ -208,6 +208,7 @@
     <button class="tab-btn" data-tab="neuerAntrag">Neuer Antrag</button>
     <button class="tab-btn" data-tab="historie">Historie</button>
     <button class="tab-btn" data-tab="admin" id="adminTabBtn" style="display:none;">Admin</button>
+    <button class="tab-btn" data-tab="hr" id="hrTabBtn" style="display:none;">HR</button>
   </div>
 
   <div id="tab-uebersicht" class="tab-content">
@@ -287,21 +288,21 @@
         <span>Team-Kalender</span>
         <span style="display:flex; align-items:center; gap:10px; font-weight:500; font-size:14px;">
           <button onclick="kalenderMonatWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
-          <span id="kalenderMonatLabel" style="min-width:110px; text-align:center; color:var(--text);"></span>
+          <span id="adminKalenderMonatLabel" style="min-width:110px; text-align:center; color:var(--text);"></span>
           <button onclick="kalenderMonatWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
         </span>
       </h2>
-      <div id="teamKalenderGrid"></div>
+      <div id="adminKalenderGrid"></div>
       <div style="display:flex; gap:16px; margin-top:14px; font-size:12px; color:var(--text-soft);">
         <div style="display:flex; align-items:center; gap:5px;"><span style="width:9px;height:9px;background:var(--primary);border-radius:2px;display:inline-block;"></span> Genehmigt</div>
         <div style="display:flex; align-items:center; gap:5px;"><span style="width:9px;height:9px;background:var(--warning);border-radius:2px;display:inline-block;"></span> Ausstehend</div>
       </div>
-      <div id="teamKalenderAuswahl" style="margin-top:14px; font-size:13px;"></div>
+      <div id="adminKalenderAuswahl" style="margin-top:14px; font-size:13px;"></div>
     </div>
 
     <div class="card">
       <h2>Mitarbeiter-Jahresanspruch</h2>
-      <div id="mitarbeiterListe">Lade...</div>
+      <div id="adminMitarbeiterListe">Lade...</div>
       <div style="margin-top:16px; border-top:1px solid #f0f0f0; padding-top:16px;">
         <label>Neuer Mitarbeiter – E-Mail</label>
         <input type="text" id="neuerMitarbeiterEmail" placeholder="vorname.nachname@akkurata-treuhand.de" />
@@ -316,8 +317,61 @@
     <div class="card">
       <h2>Aus Entra ID importieren</h2>
       <p style="font-size:13px; color:#888; margin:-8px 0 12px;">Zeigt aktive Mitarbeiter-Konten aus dem Tenant, die noch nicht erfasst sind.</p>
-      <button class="primary" id="entraLadenBtn" style="margin-bottom:12px;">Mitarbeiter aus Entra ID laden</button>
-      <div id="entraUserListe"></div>
+      <button class="primary" id="adminEntraLadenBtn" style="margin-bottom:12px;">Mitarbeiter aus Entra ID laden</button>
+      <div id="adminEntraUserListe"></div>
+    </div>
+  </div>
+
+  <div id="tab-hr" class="tab-content" style="display:none;">
+    <h2 style="font-size:16px; margin-bottom:12px;">HR – Übersicht &amp; Mitarbeiter</h2>
+    <p style="font-size:13px; color:var(--text-soft); margin:-8px 0 16px;">Nur Ansicht bei Anträgen – die Genehmigung liegt bei der Geschäftsführung.</p>
+
+    <div class="card">
+      <h2>Offene Anträge</h2>
+      <div id="hrOffeneAntraege">Lade...</div>
+    </div>
+
+    <div class="card">
+      <h2>Team-Übersicht</h2>
+      <div id="hrTeamUebersicht">Lade...</div>
+    </div>
+
+    <div class="card">
+      <h2 style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Team-Kalender</span>
+        <span style="display:flex; align-items:center; gap:10px; font-weight:500; font-size:14px;">
+          <button onclick="kalenderMonatWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
+          <span id="hrKalenderMonatLabel" style="min-width:110px; text-align:center; color:var(--text);"></span>
+          <button onclick="kalenderMonatWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
+        </span>
+      </h2>
+      <div id="hrKalenderGrid"></div>
+      <div style="display:flex; gap:16px; margin-top:14px; font-size:12px; color:var(--text-soft);">
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:9px;height:9px;background:var(--primary);border-radius:2px;display:inline-block;"></span> Genehmigt</div>
+        <div style="display:flex; align-items:center; gap:5px;"><span style="width:9px;height:9px;background:var(--warning);border-radius:2px;display:inline-block;"></span> Ausstehend</div>
+      </div>
+      <div id="hrKalenderAuswahl" style="margin-top:14px; font-size:13px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>Mitarbeiter-Jahresanspruch</h2>
+      <div id="hrMitarbeiterListe">Lade...</div>
+      <div style="margin-top:16px; border-top:1px solid #f0f0f0; padding-top:16px;">
+        <label>Neuer Mitarbeiter – E-Mail</label>
+        <input type="text" id="hrNeuerMitarbeiterEmail" placeholder="vorname.nachname@akkurata-treuhand.de" />
+        <label>Name</label>
+        <input type="text" id="hrNeuerMitarbeiterName" />
+        <label>Jahresanspruch (Tage)</label>
+        <input type="number" id="hrNeuerMitarbeiterAnspruch" value="30" />
+        <button class="primary" id="hrNeuerMitarbeiterBtn">Manuell hinzufügen</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Aus Entra ID importieren</h2>
+      <p style="font-size:13px; color:#888; margin:-8px 0 12px;">Zeigt aktive Mitarbeiter-Konten aus dem Tenant, die noch nicht erfasst sind.</p>
+      <button class="primary" id="hrEntraLadenBtn" style="margin-bottom:12px;">Mitarbeiter aus Entra ID laden</button>
+      <div id="hrEntraUserListe"></div>
     </div>
   </div>
 
@@ -354,6 +408,7 @@ const msalConfig = {
 const SITE_PATH = "akkuratatreuhand.sharepoint.com:/sites/Akkurata-Urlaubsantrag:";
 const LIST_ID_URLAUBSANTRAEGE = "41e433a3-8e9d-4aad-bdff-208eaa727281";
 const LIST_ID_GENEHMIGER = "79e08655-41a1-450c-89fb-805deedea0e9";
+const LIST_ID_HR = "HIER_LIST_ID_EINTRAGEN"; // <-- nach Skriptlauf ersetzen
 const LIST_ID_MITARBEITER = "890b2bc5-a7fa-43de-a232-b52fec391c39";
 
 const graphScopes = ["Sites.ReadWrite.All", "User.Read.All"];
@@ -361,6 +416,7 @@ const graphScopes = ["Sites.ReadWrite.All", "User.Read.All"];
 const msalInstance = new msal.PublicClientApplication(msalConfig);
 let currentAccount = null;
 let istAdmin = false;
+let istHR = false;
 
 // Antrag-ID aus der URL vor dem Login-Redirect sichern (geht sonst beim Redirect verloren)
 const antragIdFromUrl = new URLSearchParams(window.location.search).get("antrag");
@@ -387,10 +443,17 @@ async function init() {
     } else {
       showApp();
       await pruefeAdminStatus();
+      await pruefeHRStatus();
       loadUebersichtUndHistorie();
       if (istAdmin) {
         document.getElementById("adminTabBtn").style.display = "inline-block";
         loadAdminOffeneAntraege();
+      }
+      if (istHR) {
+        document.getElementById("hrTabBtn").style.display = "inline-block";
+        loadHROffeneAntraege();
+      }
+      if (istAdmin || istHR) {
         loadMitarbeiterListe();
         loadAdminTeamDaten();
       }
@@ -655,7 +718,14 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
       fields.Title = `Antrag-${Date.now()}`;
       fields.AntragstellerEmail = currentAccount.username;
       fields.AntragstellerName = currentAccount.name || currentAccount.username;
-      fields.Status = "Ausstehend";
+      if (istAdmin) {
+        // Geschäftsführung: eigene Anträge werden nicht separat genehmigt
+        fields.Status = "Genehmigt";
+        fields.Genehmigtam = new Date().toISOString();
+        fields.GenehmigtVon = "Automatisch genehmigt (Geschäftsführung)";
+      } else {
+        fields.Status = "Ausstehend";
+      }
       await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items`, {
         method: "POST",
         body: JSON.stringify({ fields })
@@ -744,6 +814,17 @@ async function pruefeAdminStatus() {
   } catch (err) {
     console.error("pruefeAdminStatus fehlgeschlagen:", err);
     istAdmin = false;
+  }
+}
+
+async function pruefeHRStatus() {
+  try {
+    const email = currentAccount.username.toLowerCase();
+    const hrListe = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_HR}/items?expand=fields`);
+    istHR = hrListe.value.some(h => (h.fields.Email || "").toLowerCase() === email && (h.fields.Aktiv === true || h.fields.Aktiv === 1));
+  } catch (err) {
+    console.error("pruefeHRStatus fehlgeschlagen:", err);
+    istHR = false;
   }
 }
 
@@ -874,11 +955,6 @@ async function loadAdminTeamDaten() {
 }
 
 function renderAdminTeamUebersicht() {
-  const el = document.getElementById("adminTeamUebersicht");
-  if (adminAlleMitarbeiter.length === 0) {
-    el.innerHTML = "<p>Noch keine Mitarbeiter erfasst.</p>";
-    return;
-  }
   const jahr = new Date().getFullYear();
 
   const rows = adminAlleMitarbeiter.map(m => {
@@ -911,24 +987,28 @@ function renderAdminTeamUebersicht() {
     `;
   }).join("");
 
-  el.innerHTML = rows;
+  const inhalt = adminAlleMitarbeiter.length === 0 ? "<p>Noch keine Mitarbeiter erfasst.</p>" : rows;
+
+  ["admin", "hr"].forEach(prefix => {
+    const el = document.getElementById(prefix + "TeamUebersicht");
+    if (el) el.innerHTML = inhalt;
+  });
 }
 
 function kalenderMonatWechseln(delta) {
   kalenderMonat = new Date(kalenderMonat.getFullYear(), kalenderMonat.getMonth() + delta, 1);
-  document.getElementById("teamKalenderAuswahl").innerHTML = "";
+  ["admin", "hr"].forEach(prefix => {
+    const el = document.getElementById(prefix + "KalenderAuswahl");
+    if (el) el.innerHTML = "";
+  });
   renderTeamKalender();
 }
 
-function renderTeamKalender() {
-  const grid = document.getElementById("teamKalenderGrid");
+function baueKalenderHtml(prefix) {
   const monatsNamen = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
-  document.getElementById("kalenderMonatLabel").textContent = `${monatsNamen[kalenderMonat.getMonth()]} ${kalenderMonat.getFullYear()}`;
-
   const jahr = kalenderMonat.getFullYear();
   const monat = kalenderMonat.getMonth();
   const ersterTag = new Date(jahr, monat, 1);
-  // Montag als Wochenstart: JS-Wochentag (0=So) auf 0=Mo verschieben
   const startOffset = (ersterTag.getDay() + 6) % 7;
   const startDatum = new Date(jahr, monat, 1 - startOffset);
 
@@ -959,19 +1039,29 @@ function renderTeamKalender() {
     const tagIso = tag.toISOString().split("T")[0];
     html += `
       <div class="kal-day ${istAndererMonat ? 'andere-monat' : ''} ${eintraege.length ? 'hat-eintrag' : ''}"
-           ${eintraege.length ? `onclick="zeigeKalenderTag('${tagIso}')"` : ''}>
+           ${eintraege.length ? `onclick="zeigeKalenderTag('${tagIso}','${prefix}')"` : ''}>
         <div class="kal-daynum">${tag.getDate()}</div>
         ${pills}
         ${mehr}
       </div>
     `;
   }
-
-  grid.className = "kal-grid";
-  grid.innerHTML = html;
+  return html;
 }
 
-function zeigeKalenderTag(tagIso) {
+function renderTeamKalender() {
+  const monatsNamen = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+  ["admin", "hr"].forEach(prefix => {
+    const grid = document.getElementById(prefix + "KalenderGrid");
+    if (!grid) return;
+    const label = document.getElementById(prefix + "KalenderMonatLabel");
+    if (label) label.textContent = `${monatsNamen[kalenderMonat.getMonth()]} ${kalenderMonat.getFullYear()}`;
+    grid.className = "kal-grid";
+    grid.innerHTML = baueKalenderHtml(prefix);
+  });
+}
+
+function zeigeKalenderTag(tagIso, prefix) {
   const tag = new Date(tagIso + "T00:00:00");
   const eintraege = adminAlleAntraege.filter(a => {
     const von = new Date(a.fields.VonDatum); von.setHours(0,0,0,0);
@@ -979,7 +1069,8 @@ function zeigeKalenderTag(tagIso) {
     return tag >= von && tag <= bis;
   });
 
-  const el = document.getElementById("teamKalenderAuswahl");
+  const el = document.getElementById((prefix || "admin") + "KalenderAuswahl");
+  if (!el) return;
   const liste = eintraege.map(e => {
     const f = e.fields;
     const statusClass = "status-" + (f.Status || "").replace(/\s/g, "");
@@ -1032,10 +1123,44 @@ async function loadAdminOffeneAntraege() {
   }
 }
 
+async function loadHROffeneAntraege() {
+  const el = document.getElementById("hrOffeneAntraege");
+  if (!el) return;
+  try {
+    const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/Status eq 'Ausstehend' or fields/Status eq 'Storno beantragt'`);
+    if (data.value.length === 0) {
+      el.innerHTML = "<p>Keine offenen Anträge.</p>";
+      return;
+    }
+    data.value.sort((a, b) => new Date(a.fields.VonDatum) - new Date(b.fields.VonDatum));
+
+    el.innerHTML = data.value.map(item => {
+      const f = item.fields;
+      const istStorno = f.Status === "Storno beantragt";
+      const stornoBadge = istStorno ? `<span class="status status-Abgelehnt" style="margin-left:8px;">Storno-Anfrage</span>` : "";
+      return `
+        <div class="admin-item">
+          <div class="antrag-item-top">
+            <div>
+              <div><strong>${f.AntragstellerName || f.AntragstellerEmail}</strong>${stornoBadge}</div>
+              <div class="antrag-meta">${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)} · ${f.Urlaubsart || ""} · ${f.AnzahlTage || "?"} Tage</div>
+            </div>
+            <span class="status status-Ausstehend">Wartet auf Genehmigung</span>
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    showError(err);
+    el.innerHTML = "<p>Fehler beim Laden.</p>";
+  }
+}
+
 async function adminEntscheiden(itemId, entscheidung) {
   try {
     await verarbeiteEntscheidung(itemId, entscheidung);
     loadAdminOffeneAntraege();
+    loadHROffeneAntraege();
     loadAdminTeamDaten();
   } catch (err) {
     showError(err);
@@ -1048,18 +1173,12 @@ async function adminEntscheiden(itemId, entscheidung) {
 let erfassteMitarbeiterEmails = [];
 
 async function loadMitarbeiterListe() {
-  const el = document.getElementById("mitarbeiterListe");
   try {
     const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items?expand=fields`);
     erfassteMitarbeiterEmails = data.value.map(i => (i.fields.Email || "").toLowerCase());
-
-    if (data.value.length === 0) {
-      el.innerHTML = "<p>Noch keine Mitarbeiter erfasst.</p>";
-      return;
-    }
     data.value.sort((a, b) => (a.fields.Title || "").localeCompare(b.fields.Title || ""));
 
-    el.innerHTML = data.value.map(item => `
+    const inhalt = data.value.length === 0 ? "<p>Noch keine Mitarbeiter erfasst.</p>" : data.value.map(item => `
       <div class="mitarbeiter-row">
         <span class="name">${item.fields.Title || ""} <span style="color:#aaa;">(${item.fields.Email || ""})</span></span>
         <input type="number" id="anspruch-${item.id}" value="${item.fields.JahresAnspruch || 0}" />
@@ -1067,9 +1186,13 @@ async function loadMitarbeiterListe() {
         <button onclick="loescheMitarbeiter('${item.id}')" style="background:#c62828;">Entfernen</button>
       </div>
     `).join("");
+
+    ["admin", "hr"].forEach(prefix => {
+      const el = document.getElementById(prefix + "MitarbeiterListe");
+      if (el) el.innerHTML = inhalt;
+    });
   } catch (err) {
     showError(err);
-    el.innerHTML = "<p>Fehler beim Laden.</p>";
   }
 }
 
@@ -1103,13 +1226,18 @@ async function speichereAnspruch(itemId, btnEl) {
 }
 
 // ============================================================
-// ADMIN: MITARBEITER AUS ENTRA ID IMPORTIEREN
+// ADMIN/HR: MITARBEITER AUS ENTRA ID IMPORTIEREN
 // ============================================================
-document.getElementById("entraLadenBtn").addEventListener("click", loadEntraUsers);
+["adminEntraLadenBtn", "hrEntraLadenBtn"].forEach(id => {
+  const btn = document.getElementById(id);
+  if (btn) btn.addEventListener("click", loadEntraUsers);
+});
 
 async function loadEntraUsers() {
-  const el = document.getElementById("entraUserListe");
-  el.innerHTML = "Lade Entra-ID-Benutzer...";
+  ["admin", "hr"].forEach(prefix => {
+    const el = document.getElementById(prefix + "EntraUserListe");
+    if (el) el.innerHTML = "Lade Entra-ID-Benutzer...";
+  });
   try {
     const data = await graphFetch(
       `/users?$select=displayName,mail,userPrincipalName,accountEnabled,userType&$filter=accountEnabled eq true and userType eq 'Member'&$top=999`
@@ -1120,20 +1248,23 @@ async function loadEntraUsers() {
       .filter(u => u.email && !erfassteMitarbeiterEmails.includes(u.email))
       .sort((a, b) => a.name.localeCompare(b.name));
 
-    if (kandidaten.length === 0) {
-      el.innerHTML = "<p>Alle aktiven Mitarbeiter sind bereits erfasst.</p>";
-      return;
-    }
-
-    el.innerHTML = kandidaten.map(u => `
+    const inhalt = kandidaten.length === 0 ? "<p>Alle aktiven Mitarbeiter sind bereits erfasst.</p>" : kandidaten.map(u => `
       <div class="mitarbeiter-row">
         <span class="name">${u.name} <span style="color:#aaa;">(${u.email})</span></span>
         <button onclick="entraMitarbeiterUebernehmen('${u.name.replace(/'/g, "&#39;")}', '${u.email}', this)">Hinzufügen</button>
       </div>
     `).join("");
+
+    ["admin", "hr"].forEach(prefix => {
+      const el = document.getElementById(prefix + "EntraUserListe");
+      if (el) el.innerHTML = inhalt;
+    });
   } catch (err) {
     showError(err);
-    el.innerHTML = "<p>Fehler beim Laden aus Entra ID.</p>";
+    ["admin", "hr"].forEach(prefix => {
+      const el = document.getElementById(prefix + "EntraUserListe");
+      if (el) el.innerHTML = "<p>Fehler beim Laden aus Entra ID.</p>";
+    });
   }
 }
 
@@ -1153,10 +1284,13 @@ async function entraMitarbeiterUebernehmen(name, email, btnEl) {
   }
 }
 
-document.getElementById("neuerMitarbeiterBtn").addEventListener("click", async () => {
-  const email = document.getElementById("neuerMitarbeiterEmail").value.trim();
-  const name = document.getElementById("neuerMitarbeiterName").value.trim();
-  const anspruch = document.getElementById("neuerMitarbeiterAnspruch").value;
+async function neuerMitarbeiterHinzufuegen(prefix) {
+  const emailEl = document.getElementById(prefix + "MitarbeiterEmail");
+  const nameEl = document.getElementById(prefix + "MitarbeiterName");
+  const anspruchEl = document.getElementById(prefix + "MitarbeiterAnspruch");
+  const email = emailEl.value.trim();
+  const name = nameEl.value.trim();
+  const anspruch = anspruchEl.value;
 
   if (!email || !name) {
     showError(new Error("Bitte E-Mail und Name angeben."));
@@ -1170,15 +1304,19 @@ document.getElementById("neuerMitarbeiterBtn").addEventListener("click", async (
         fields: { Title: name, Email: email, JahresAnspruch: Number(anspruch) }
       })
     });
-    document.getElementById("neuerMitarbeiterEmail").value = "";
-    document.getElementById("neuerMitarbeiterName").value = "";
-    document.getElementById("neuerMitarbeiterAnspruch").value = "30";
+    emailEl.value = "";
+    nameEl.value = "";
+    anspruchEl.value = "30";
     loadMitarbeiterListe();
     loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   }
-});
+}
+
+document.getElementById("neuerMitarbeiterBtn").addEventListener("click", () => neuerMitarbeiterHinzufuegen("neuer"));
+const hrNeuerBtn = document.getElementById("hrNeuerMitarbeiterBtn");
+if (hrNeuerBtn) hrNeuerBtn.addEventListener("click", () => neuerMitarbeiterHinzufuegen("hrNeuer"));
 
 init();
 </script>
