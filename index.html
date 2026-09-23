@@ -153,14 +153,19 @@
   .kal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .kal-weekday { font-size: 11px; color: var(--text-soft); text-align: center; font-weight: 600; padding-bottom: 4px; }
   .kal-day {
-    aspect-ratio: 1; border-radius: 8px; background: var(--bg); font-size: 11px; padding: 4px;
-    color: var(--text-soft); cursor: default; display: flex; flex-direction: column; gap: 2px;
+    min-height: 68px; border-radius: 8px; background: var(--bg); font-size: 10.5px; padding: 4px;
+    color: var(--text-soft); cursor: default; display: flex; flex-direction: column; gap: 2px; overflow: hidden;
   }
+  .kal-day .kal-daynum { font-size: 11px; font-weight: 600; }
   .kal-day.hat-eintrag { cursor: pointer; }
-  .kal-day.andere-monat { opacity: 0.35; }
-  .kal-bar { height: 5px; border-radius: 2px; }
-  .kal-bar.genehmigt { background: var(--primary); }
-  .kal-bar.ausstehend { background: var(--warning); }
+  .kal-day.andere-monat { opacity: 0.32; }
+  .kal-pill {
+    font-size: 9px; padding: 1.5px 5px; border-radius: 5px; color: white; font-weight: 600;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .kal-pill.genehmigt { background: var(--primary); }
+  .kal-pill.ausstehend { background: var(--warning); }
+  .kal-mehr { font-size: 9px; color: var(--text-soft); font-weight: 600; }
   .team-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .team-row:last-child { border-bottom: none; }
   .team-avatar {
@@ -661,6 +666,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     document.getElementById("bisDatum").value = "";
     document.getElementById("kommentar").value = "";
     loadUebersichtUndHistorie();
+    if (istAdmin) loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   } finally {
@@ -702,6 +708,7 @@ async function zurueckziehen(itemId) {
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, { method: "DELETE" });
     loadUebersichtUndHistorie();
+    if (istAdmin) loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   }
@@ -715,6 +722,7 @@ async function stornoBeantragen(itemId) {
       body: JSON.stringify({ fields: { Status: "Storno beantragt", GenehmigtVon: "" } })
     });
     loadUebersichtUndHistorie();
+    if (istAdmin) loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   }
@@ -939,20 +947,22 @@ function renderTeamKalender() {
       return t >= von && t <= bis;
     });
 
-    const hatGenehmigt = eintraege.some(e => e.fields.Status === "Genehmigt");
-    const hatAusstehend = eintraege.some(e => e.fields.Status === "Ausstehend" || e.fields.Status === "Storno beantragt");
-
-    const balken = [
-      hatGenehmigt ? '<div class="kal-bar genehmigt"></div>' : '',
-      hatAusstehend ? '<div class="kal-bar ausstehend"></div>' : ''
-    ].join("");
+    const maxAnzeige = 2;
+    const pills = eintraege.slice(0, maxAnzeige).map(e => {
+      const f = e.fields;
+      const vorname = (f.AntragstellerName || f.AntragstellerEmail || "?").split(" ")[0];
+      const cls = f.Status === "Genehmigt" ? "genehmigt" : "ausstehend";
+      return `<div class="kal-pill ${cls}">${vorname}</div>`;
+    }).join("");
+    const mehr = eintraege.length > maxAnzeige ? `<div class="kal-mehr">+${eintraege.length - maxAnzeige} mehr</div>` : "";
 
     const tagIso = tag.toISOString().split("T")[0];
     html += `
       <div class="kal-day ${istAndererMonat ? 'andere-monat' : ''} ${eintraege.length ? 'hat-eintrag' : ''}"
            ${eintraege.length ? `onclick="zeigeKalenderTag('${tagIso}')"` : ''}>
-        <div>${tag.getDate()}</div>
-        ${balken}
+        <div class="kal-daynum">${tag.getDate()}</div>
+        ${pills}
+        ${mehr}
       </div>
     `;
   }
@@ -1053,7 +1063,7 @@ async function loadMitarbeiterListe() {
       <div class="mitarbeiter-row">
         <span class="name">${item.fields.Title || ""} <span style="color:#aaa;">(${item.fields.Email || ""})</span></span>
         <input type="number" id="anspruch-${item.id}" value="${item.fields.JahresAnspruch || 0}" />
-        <button onclick="speichereAnspruch('${item.id}')">Speichern</button>
+        <button onclick="speichereAnspruch('${item.id}', this)">Speichern</button>
         <button onclick="loescheMitarbeiter('${item.id}')" style="background:#c62828;">Entfernen</button>
       </div>
     `).join("");
@@ -1068,18 +1078,25 @@ async function loescheMitarbeiter(itemId) {
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items/${itemId}`, { method: "DELETE" });
     loadMitarbeiterListe();
+    loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   }
 }
 
-async function speichereAnspruch(itemId) {
+async function speichereAnspruch(itemId, btnEl) {
   const neuerWert = document.getElementById(`anspruch-${itemId}`).value;
+  const ursprungsText = btnEl ? btnEl.textContent : "Speichern";
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items/${itemId}`, {
       method: "PATCH",
       body: JSON.stringify({ fields: { JahresAnspruch: Number(neuerWert) } })
     });
+    if (btnEl) {
+      btnEl.textContent = "✓ Gespeichert";
+      setTimeout(() => { btnEl.textContent = ursprungsText; }, 1500);
+    }
+    loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   }
@@ -1129,6 +1146,7 @@ async function entraMitarbeiterUebernehmen(name, email, btnEl) {
     });
     await loadMitarbeiterListe();
     loadEntraUsers();
+    loadAdminTeamDaten();
   } catch (err) {
     showError(err);
     btnEl.disabled = false;
@@ -1156,6 +1174,7 @@ document.getElementById("neuerMitarbeiterBtn").addEventListener("click", async (
     document.getElementById("neuerMitarbeiterName").value = "";
     document.getElementById("neuerMitarbeiterAnspruch").value = "30";
     loadMitarbeiterListe();
+    loadAdminTeamDaten();
   } catch (err) {
     showError(err);
   }
