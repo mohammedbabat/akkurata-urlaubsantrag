@@ -151,6 +151,13 @@
   .mitarbeiter-row button { background: var(--primary); color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
   #adminSection { display: none; margin-top: 24px; }
   .kal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+  .kal-week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: start; }
+  .kal-week-day { background: var(--bg); border-radius: 10px; padding: 8px 6px; min-height: 70px; }
+  .kal-week-day-head { font-size: 10.5px; font-weight: 700; color: var(--text-soft); margin-bottom: 6px; }
+  @media (max-width: 640px) {
+    .kal-week-grid { grid-template-columns: 1fr; }
+    .kal-week-day-head { font-size: 12px; }
+  }
   .kal-weekday { font-size: 11px; color: var(--text-soft); text-align: center; font-weight: 600; padding-bottom: 4px; }
   .kal-day {
     min-height: 68px; border-radius: 8px; background: var(--bg); font-size: 10.5px; padding: 4px;
@@ -244,9 +251,13 @@
       <h2 style="display:flex; align-items:center; justify-content:space-between;">
         <span>Team-Kalender</span>
         <span style="display:flex; align-items:center; gap:10px; font-weight:500; font-size:14px;">
-          <button onclick="kalenderMonatWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
-          <span id="userKalenderMonatLabel" style="min-width:110px; text-align:center; color:var(--text);"></span>
-          <button onclick="kalenderMonatWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
+          <button onclick="kalenderNavWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
+          <span id="userKalenderMonatLabel" style="min-width:130px; text-align:center; color:var(--text);"></span>
+          <button onclick="kalenderNavWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
+          <span style="display:flex; gap:3px; margin-left:6px;">
+            <button class="kal-ansicht-btn active" data-ansicht="monat" onclick="kalenderAnsichtSetzen(&#39;monat&#39;)" style="font-size:11px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--primary); color:white; cursor:pointer;">Monat</button>
+            <button class="kal-ansicht-btn" data-ansicht="woche" onclick="kalenderAnsichtSetzen(&#39;woche&#39;)" style="font-size:11px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text-soft); cursor:pointer;">Woche</button>
+          </span>
         </span>
       </h2>
       <p style="font-size:12.5px; color:var(--text-soft); margin:-8px 0 12px;">So siehst du auf einen Blick, wer wann Urlaub hat – hilfreich für die Planung deines eigenen Antrags.</p>
@@ -308,9 +319,13 @@
       <h2 style="display:flex; align-items:center; justify-content:space-between;">
         <span>Team-Kalender</span>
         <span style="display:flex; align-items:center; gap:10px; font-weight:500; font-size:14px;">
-          <button onclick="kalenderMonatWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
-          <span id="adminKalenderMonatLabel" style="min-width:110px; text-align:center; color:var(--text);"></span>
-          <button onclick="kalenderMonatWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
+          <button onclick="kalenderNavWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
+          <span id="adminKalenderMonatLabel" style="min-width:130px; text-align:center; color:var(--text);"></span>
+          <button onclick="kalenderNavWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
+          <span style="display:flex; gap:3px; margin-left:6px;">
+            <button class="kal-ansicht-btn active" data-ansicht="monat" onclick="kalenderAnsichtSetzen(&#39;monat&#39;)" style="font-size:11px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--primary); color:white; cursor:pointer;">Monat</button>
+            <button class="kal-ansicht-btn" data-ansicht="woche" onclick="kalenderAnsichtSetzen(&#39;woche&#39;)" style="font-size:11px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text-soft); cursor:pointer;">Woche</button>
+          </span>
         </span>
       </h2>
       <div id="adminKalenderGrid"></div>
@@ -338,7 +353,7 @@
     <div class="card">
       <h2>Feiertage</h2>
       <p style="font-size:13px; color:#888; margin:-8px 0 12px;">Feiertage zählen nicht als Urlaubstag und werden bei neuen Anträgen automatisch abgezogen.</p>
-      <div id="adminFeiertageListe">Lade...</div>
+      <div id="adminFeiertageListe" style="max-height:260px; overflow-y:auto;">Lade...</div>
       <div style="margin-top:16px; border-top:1px solid #f0f0f0; padding-top:16px;">
         <div class="row">
           <div>
@@ -380,9 +395,13 @@
       <h2 style="display:flex; align-items:center; justify-content:space-between;">
         <span>Team-Kalender</span>
         <span style="display:flex; align-items:center; gap:10px; font-weight:500; font-size:14px;">
-          <button onclick="kalenderMonatWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
-          <span id="hrKalenderMonatLabel" style="min-width:110px; text-align:center; color:var(--text);"></span>
-          <button onclick="kalenderMonatWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
+          <button onclick="kalenderNavWechseln(-1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">‹</button>
+          <span id="hrKalenderMonatLabel" style="min-width:130px; text-align:center; color:var(--text);"></span>
+          <button onclick="kalenderNavWechseln(1)" style="background:var(--bg); border:1px solid var(--border); width:28px; height:28px; border-radius:8px; cursor:pointer; font-size:14px;">›</button>
+          <span style="display:flex; gap:3px; margin-left:6px;">
+            <button class="kal-ansicht-btn active" data-ansicht="monat" onclick="kalenderAnsichtSetzen(&#39;monat&#39;)" style="font-size:11px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--primary); color:white; cursor:pointer;">Monat</button>
+            <button class="kal-ansicht-btn" data-ansicht="woche" onclick="kalenderAnsichtSetzen(&#39;woche&#39;)" style="font-size:11px; padding:4px 9px; border-radius:6px; border:1px solid var(--border); background:var(--bg); color:var(--text-soft); cursor:pointer;">Woche</button>
+          </span>
         </span>
       </h2>
       <div id="hrKalenderGrid"></div>
@@ -410,7 +429,7 @@
     <div class="card">
       <h2>Feiertage</h2>
       <p style="font-size:13px; color:#888; margin:-8px 0 12px;">Feiertage zählen nicht als Urlaubstag und werden bei neuen Anträgen automatisch abgezogen.</p>
-      <div id="hrFeiertageListe">Lade...</div>
+      <div id="hrFeiertageListe" style="max-height:260px; overflow-y:auto;">Lade...</div>
       <div style="margin-top:16px; border-top:1px solid #f0f0f0; padding-top:16px;">
         <div class="row">
           <div>
@@ -612,13 +631,22 @@ function istFeiertag(datumIso) {
   return feiertageCache.find(f => f.datum === datumIso);
 }
 
+// Liefert YYYY-MM-DD nach LOKALEM Datum (nicht UTC!) - wichtig, da toISOString()
+// bei Zeitzonen vor UTC (z.B. Deutschland) den Kalendertag verschieben wuerde.
+function localDatumIso(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const t = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${t}`;
+}
+
 function berechneTage(von, bis) {
   const start = new Date(von);
   const end = new Date(bis);
   let tage = 0;
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const wd = d.getDay();
-    const iso = d.toISOString().split("T")[0];
+    const iso = localDatumIso(d);
     if (wd !== 0 && wd !== 6 && !istFeiertag(iso)) tage++;
   }
   return tage;
@@ -629,6 +657,7 @@ function berechneTage(von, bis) {
 // ============================================================
 let meineAntraegeCache = [];
 let meinJahresAnspruch = 0;
+let meinUebertrag = 0;
 
 async function loadUebersichtUndHistorie() {
   const listEl = document.getElementById("antraegeList");
@@ -645,6 +674,7 @@ async function loadUebersichtUndHistorie() {
     items.sort((a, b) => new Date(b.fields.VonDatum) - new Date(a.fields.VonDatum));
     meineAntraegeCache = items;
     meinJahresAnspruch = anspruchData.value.length > 0 ? (anspruchData.value[0].fields.JahresAnspruch || 0) : 0;
+    meinUebertrag = anspruchData.value.length > 0 ? (anspruchData.value[0].fields.Uebertrag || 0) : 0;
 
     // Jahres-Dropdown befuellen: alle Jahre, in denen Antraege liegen, plus das laufende Jahr
     const heute = new Date().getFullYear();
@@ -689,8 +719,11 @@ function renderUebersichtStats(jahr) {
     else if (f.Status === "Abgelehnt") abgelehnt += tage;
   });
 
-  document.getElementById("statAnspruch").textContent = meinJahresAnspruch || "–";
-  const rest = meinJahresAnspruch ? (meinJahresAnspruch - genommen - ausstehend) : null;
+  const effektiverAnspruch = meinJahresAnspruch + meinUebertrag;
+  document.getElementById("statAnspruch").textContent = meinUebertrag
+    ? `${meinJahresAnspruch} + ${meinUebertrag} Übertrag`
+    : (meinJahresAnspruch || "–");
+  const rest = effektiverAnspruch ? (effektiverAnspruch - genommen - ausstehend) : null;
   document.getElementById("statRest").textContent = rest !== null ? rest : "–";
   document.getElementById("statGenommen").textContent = genommen;
   document.getElementById("statAusstehend").textContent = ausstehend;
@@ -700,7 +733,7 @@ function renderUebersichtStats(jahr) {
   if (sonderEl) sonderEl.textContent = sonderurlaub;
 
   const ring = document.getElementById("restRingCircle");
-  const anteil = meinJahresAnspruch ? Math.max(0, Math.min(1, rest / meinJahresAnspruch)) : 0;
+  const anteil = effektiverAnspruch ? Math.max(0, Math.min(1, rest / effektiverAnspruch)) : 0;
   ring.style.strokeDashoffset = (289 - anteil * 289).toFixed(1);
 }
 function renderHistorieListe(items) {
@@ -1029,6 +1062,24 @@ async function entscheidenViaLink(itemId, entscheidung) {
 let adminAlleMitarbeiter = [];
 let adminAlleAntraege = [];
 let kalenderMonat = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+let kalenderAnsicht = "monat"; // "monat" | "woche"
+let kalenderWoche = montagDerWoche(new Date());
+
+function montagDerWoche(d) {
+  const offset = (d.getDay() + 6) % 7; // 0 = Montag
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() - offset);
+}
+
+function kalenderAnsichtSetzen(ansicht) {
+  kalenderAnsicht = ansicht;
+  document.querySelectorAll(".kal-ansicht-btn").forEach(b => {
+    const aktiv = b.dataset.ansicht === ansicht;
+    b.classList.toggle("active", aktiv);
+    b.style.background = aktiv ? "var(--primary)" : "var(--bg)";
+    b.style.color = aktiv ? "white" : "var(--text-soft)";
+  });
+  renderTeamKalender();
+}
 
 async function loadAdminTeamDaten() {
   try {
@@ -1064,24 +1115,28 @@ function renderAdminTeamUebersicht() {
     const email = (m.fields.Email || "").toLowerCase();
     const name = m.fields.Title || email;
     const anspruch = m.fields.JahresAnspruch || 0;
+    const uebertrag = m.fields.Uebertrag || 0;
+    const effektiverAnspruch = anspruch + uebertrag;
 
     let genommen = 0, ausstehend = 0;
     adminAlleAntraege.forEach(a => {
       const f = a.fields;
       if ((f.AntragstellerEmail || "").toLowerCase() !== email) return;
       if (new Date(f.VonDatum).getFullYear() !== jahr) return;
+      if (f.Urlaubsart === "Sonderurlaub") return; // zaehlt nicht gegen den Anspruch
       if (f.Status === "Genehmigt") genommen += (f.AnzahlTage || 0);
       else if (f.Status === "Ausstehend" || f.Status === "Storno beantragt") ausstehend += (f.AnzahlTage || 0);
     });
-    const rest = anspruch - genommen - ausstehend;
+    const rest = effektiverAnspruch - genommen - ausstehend;
     const initialen = name.split(" ").map(t => t[0]).join("").slice(0, 2).toUpperCase();
+    const anspruchLabel = uebertrag ? `${anspruch}+${uebertrag} Tage/Jahr` : `${anspruch} Tage/Jahr`;
 
     return `
       <div class="team-row">
         <div class="team-avatar">${initialen}</div>
         <div style="flex:1; min-width:0;">
           <div class="team-name">${name}</div>
-          <div class="team-meta">${anspruch} Tage/Jahr · ${email}</div>
+          <div class="team-meta">${anspruchLabel} · ${email}</div>
         </div>
         <div class="team-stat"><div class="num">${rest}</div><div class="lbl">Rest</div></div>
         <div class="team-stat"><div class="num" style="color:var(--success);">${genommen}</div><div class="lbl">Genommen</div></div>
@@ -1098,8 +1153,12 @@ function renderAdminTeamUebersicht() {
   });
 }
 
-function kalenderMonatWechseln(delta) {
-  kalenderMonat = new Date(kalenderMonat.getFullYear(), kalenderMonat.getMonth() + delta, 1);
+function kalenderNavWechseln(delta) {
+  if (kalenderAnsicht === "woche") {
+    kalenderWoche = new Date(kalenderWoche.getFullYear(), kalenderWoche.getMonth(), kalenderWoche.getDate() + delta * 7);
+  } else {
+    kalenderMonat = new Date(kalenderMonat.getFullYear(), kalenderMonat.getMonth() + delta, 1);
+  }
   ["admin", "hr", "user"].forEach(prefix => {
     const el = document.getElementById(prefix + "KalenderAuswahl");
     if (el) el.innerHTML = "";
@@ -1139,7 +1198,7 @@ function baueKalenderHtml(prefix) {
     }).join("");
     const mehr = eintraege.length > maxAnzeige ? `<div class="kal-mehr">+${eintraege.length - maxAnzeige} mehr</div>` : "";
 
-    const tagIso = tag.toISOString().split("T")[0];
+    const tagIso = localDatumIso(tag);
     const feiertag = istFeiertag(tagIso);
     const pillsUndFeiertag = feiertag
       ? `<div class="kal-pill feiertag" title="${feiertag.name}">${feiertag.name}</div>${pills}`
@@ -1163,10 +1222,53 @@ function renderTeamKalender() {
     const grid = document.getElementById(prefix + "KalenderGrid");
     if (!grid) return;
     const label = document.getElementById(prefix + "KalenderMonatLabel");
-    if (label) label.textContent = `${monatsNamen[kalenderMonat.getMonth()]} ${kalenderMonat.getFullYear()}`;
-    grid.className = "kal-grid";
-    grid.innerHTML = baueKalenderHtml(prefix);
+
+    if (kalenderAnsicht === "woche") {
+      const ende = new Date(kalenderWoche.getFullYear(), kalenderWoche.getMonth(), kalenderWoche.getDate() + 6);
+      if (label) label.textContent = `${formatDate(localDatumIso(kalenderWoche))} – ${formatDate(localDatumIso(ende))}`;
+      grid.className = "kal-week-grid";
+      grid.innerHTML = baueWochenHtml(prefix);
+    } else {
+      if (label) label.textContent = `${monatsNamen[kalenderMonat.getMonth()]} ${kalenderMonat.getFullYear()}`;
+      grid.className = "kal-grid";
+      grid.innerHTML = baueKalenderHtml(prefix);
+    }
   });
+}
+
+function baueWochenHtml(prefix) {
+  const wochentage = ["Mo","Di","Mi","Do","Fr","Sa","So"];
+  let html = "";
+
+  for (let i = 0; i < 7; i++) {
+    const tag = new Date(kalenderWoche.getFullYear(), kalenderWoche.getMonth(), kalenderWoche.getDate() + i);
+    const tagIso = localDatumIso(tag);
+
+    const eintraege = adminAlleAntraege.filter(a => {
+      const von = new Date(a.fields.VonDatum); von.setHours(0,0,0,0);
+      const bis = new Date(a.fields.BisDatum); bis.setHours(0,0,0,0);
+      const t = new Date(tag); t.setHours(0,0,0,0);
+      return t >= von && t <= bis;
+    });
+
+    const feiertag = istFeiertag(tagIso);
+    const feiertagHtml = feiertag ? `<div class="kal-pill feiertag" style="margin-bottom:3px; white-space:normal;">${feiertag.name}</div>` : "";
+    const namenHtml = eintraege.map(e => {
+      const f = e.fields;
+      const voller = f.AntragstellerName || f.AntragstellerEmail || "?";
+      const cls = f.Status === "Genehmigt" ? "genehmigt" : "ausstehend";
+      return `<div class="kal-pill ${cls}" style="white-space:normal; margin-bottom:3px;">${voller}</div>`;
+    }).join("");
+
+    html += `
+      <div class="kal-week-day">
+        <div class="kal-week-day-head">${wochentage[i]} · ${tag.getDate()}.${tag.getMonth()+1}.</div>
+        ${feiertagHtml}
+        ${namenHtml || '<div style="font-size:11px; color:var(--text-soft);">Kein Urlaub</div>'}
+      </div>
+    `;
+  }
+  return html;
 }
 
 function zeigeKalenderTag(tagIso, prefix) {
@@ -1289,7 +1391,10 @@ async function loadMitarbeiterListe() {
     const inhalt = data.value.length === 0 ? "<p>Noch keine Mitarbeiter erfasst.</p>" : data.value.map(item => `
       <div class="mitarbeiter-row">
         <span class="name">${item.fields.Title || ""} <span style="color:#aaa;">(${item.fields.Email || ""})</span></span>
+        <span style="font-size:11px; color:var(--text-soft);">Anspruch</span>
         <input type="number" id="anspruch-${item.id}" value="${item.fields.JahresAnspruch || 0}" />
+        <span style="font-size:11px; color:var(--text-soft);">Übertrag</span>
+        <input type="number" id="uebertrag-${item.id}" value="${item.fields.Uebertrag || 0}" />
         <button onclick="speichereAnspruch('${item.id}', this)">Speichern</button>
         <button onclick="loescheMitarbeiter('${item.id}')" style="background:#c62828;">Entfernen</button>
       </div>
@@ -1316,12 +1421,14 @@ async function loescheMitarbeiter(itemId) {
 }
 
 async function speichereAnspruch(itemId, btnEl) {
-  const neuerWert = document.getElementById(`anspruch-${itemId}`).value;
+  const neuerAnspruch = document.getElementById(`anspruch-${itemId}`).value;
+  const uebertragEl = document.getElementById(`uebertrag-${itemId}`);
+  const neuerUebertrag = uebertragEl ? uebertragEl.value : 0;
   const ursprungsText = btnEl ? btnEl.textContent : "Speichern";
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items/${itemId}`, {
       method: "PATCH",
-      body: JSON.stringify({ fields: { JahresAnspruch: Number(neuerWert) } })
+      body: JSON.stringify({ fields: { JahresAnspruch: Number(neuerAnspruch), Uebertrag: Number(neuerUebertrag) } })
     });
     if (btnEl) {
       btnEl.textContent = "✓ Gespeichert";
@@ -1386,14 +1493,24 @@ async function loadFeiertageListe() {
       .map(i => ({ id: i.id, datum: (i.fields.Datum || "").split("T")[0], name: i.fields.Title || "" }))
       .sort((a, b) => a.datum.localeCompare(b.datum));
 
+    // feiertageCache behaelt ALLE Eintraege (fuer Kalenderanzeige/Tage-Berechnung
+    // auch in vergangenen Monaten) - nur die Verwaltungsliste wird eingegrenzt.
     feiertageCache = eintraege.map(e => ({ datum: e.datum, name: e.name }));
 
-    const inhalt = eintraege.length === 0 ? "<p>Noch keine Feiertage erfasst.</p>" : eintraege.map(e => `
+    const heute = new Date().getFullYear();
+    const relevante = eintraege.filter(e => {
+      const j = Number(e.datum.slice(0, 4));
+      return j === heute || j === heute + 1;
+    });
+    const anzahlAusgeblendet = eintraege.length - relevante.length;
+
+    const inhalt = (relevante.length === 0 ? "<p>Noch keine Feiertage für dieses/nächstes Jahr erfasst.</p>" : relevante.map(e => `
       <div class="mitarbeiter-row">
         <span class="name">${formatDate(e.datum)} <span style="color:#aaa;">– ${e.name}</span></span>
         <button onclick="loescheFeiertag('${e.id}')" style="background:#c62828;">Entfernen</button>
       </div>
-    `).join("");
+    `).join(""))
+    + (anzahlAusgeblendet > 0 ? `<p style="font-size:11.5px; color:var(--text-soft); margin-top:8px;">+ ${anzahlAusgeblendet} weitere aus anderen Jahren (ausgeblendet, bleiben aber gespeichert)</p>` : "");
 
     ["admin", "hr"].forEach(prefix => {
       const el = document.getElementById(prefix + "FeiertageListe");
