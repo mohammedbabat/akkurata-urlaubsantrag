@@ -292,6 +292,16 @@
           <input type="date" id="bisDatum" />
         </div>
       </div>
+      <div class="row" style="margin:-6px 0 14px;">
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin:0; cursor:pointer;">
+          <input type="checkbox" id="halbtagStart" style="width:auto; margin:0;" />
+          Halber Tag am ersten Tag
+        </label>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin:0; cursor:pointer;">
+          <input type="checkbox" id="halbtagEnde" style="width:auto; margin:0;" />
+          Halber Tag am letzten Tag
+        </label>
+      </div>
       <label>Urlaubsart</label>
       <select id="urlaubsart">
         <option>Erholungsurlaub</option>
@@ -820,7 +830,7 @@ function renderHistorieListe(items) {
       } else if (f.Status === "Genehmigt") {
         aktionen = `
           <div class="btn-row">
-            <button class="reject" onclick="stornoBeantragen('${item.id}')">Storno beantragen</button>
+            <button class="reject" onclick="stornoBeantragen('${item.id}')">${istAdmin ? "Stornieren" : "Storno beantragen"}</button>
           </div>`;
       } else if (f.Status === "Storno beantragt") {
         aktionen = `<div class="antrag-meta" style="margin-top:8px;">Storno wartet auf Genehmigung.</div>`;
@@ -873,6 +883,8 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
   const bis = document.getElementById("bisDatum").value;
   const urlaubsart = document.getElementById("urlaubsart").value;
   const kommentar = document.getElementById("kommentar").value;
+  const halbStart = document.getElementById("halbtagStart").checked;
+  const halbEnde = document.getElementById("halbtagEnde").checked;
 
   if (!von || !bis) {
     showError(new Error("Bitte Von- und Bis-Datum angeben."));
@@ -884,7 +896,10 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
   btn.textContent = editItemId ? "Wird gespeichert..." : "Wird gesendet...";
 
   try {
-    const tage = berechneTage(von, bis);
+    let tage = berechneTage(von, bis);
+    if (halbStart) tage -= 0.5;
+    if (halbEnde) tage -= 0.5;
+    tage = Math.max(0.5, tage);
     const fields = {
       VonDatum: new Date(von).toISOString(),
       BisDatum: new Date(bis).toISOString(),
@@ -920,6 +935,8 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     document.getElementById("vonDatum").value = "";
     document.getElementById("bisDatum").value = "";
     document.getElementById("kommentar").value = "";
+    document.getElementById("halbtagStart").checked = false;
+    document.getElementById("halbtagEnde").checked = false;
     loadUebersichtUndHistorie();
     if (istAdmin) loadAdminTeamDaten();
   } catch (err) {
@@ -970,6 +987,24 @@ async function zurueckziehen(itemId) {
 }
 
 async function stornoBeantragen(itemId) {
+  if (istAdmin) {
+    // Geschäftsführung: Storno der eigenen Anträge braucht keine erneute Genehmigung
+    if (!confirm("Diesen genehmigten Antrag stornieren?")) return;
+    try {
+      await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          fields: { Status: "Storniert", GenehmigtVon: "Automatisch storniert (Geschäftsführung)", Genehmigtam: new Date().toISOString() }
+        })
+      });
+      loadUebersichtUndHistorie();
+      loadAdminTeamDaten();
+    } catch (err) {
+      showError(err);
+    }
+    return;
+  }
+
   if (!confirm("Storno für diesen bereits genehmigten Antrag beantragen? Die Genehmiger müssen dem Storno zustimmen.")) return;
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${itemId}`, {
