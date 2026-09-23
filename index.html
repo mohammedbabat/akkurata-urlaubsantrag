@@ -385,6 +385,10 @@
             <input type="text" id="neuerFeiertagName" placeholder="z.B. Fronleichnam" />
           </div>
         </div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin:-4px 0 14px; cursor:pointer;">
+          <input type="checkbox" id="neuerFeiertagWiederkehrend" style="width:auto; margin:0;" />
+          Jedes Jahr am gleichen Datum (z.B. Neujahr, 1. Mai)
+        </label>
         <button class="primary" id="neuerFeiertagBtn">Feiertag hinzufügen</button>
       </div>
     </div>
@@ -473,6 +477,10 @@
             <input type="text" id="hrNeuerFeiertagName" placeholder="z.B. Fronleichnam" />
           </div>
         </div>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin:-4px 0 14px; cursor:pointer;">
+          <input type="checkbox" id="hrNeuerFeiertagWiederkehrend" style="width:auto; margin:0;" />
+          Jedes Jahr am gleichen Datum (z.B. Neujahr, 1. Mai)
+        </label>
         <button class="primary" id="hrNeuerFeiertagBtn">Feiertag hinzufügen</button>
       </div>
     </div>
@@ -644,14 +652,21 @@ function formatDate(iso) {
   return new Date(iso).toLocaleDateString("de-DE");
 }
 
-let feiertageCache = []; // Array von ISO-Datumsstrings "YYYY-MM-DD"
+function formatTagMonat(iso) {
+  if (!iso) return "?";
+  const [, m, t] = iso.split("-");
+  return `${Number(t)}.${Number(m)}.`;
+}
+
+let feiertageCache = []; // { datum: "YYYY-MM-DD", name, wiederkehrend }
 
 async function ladeFeiertage() {
   try {
     const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_FEIERTAGE}/items?expand=fields`);
     feiertageCache = data.value.map(i => ({
       datum: (i.fields.Datum || "").split("T")[0],
-      name: i.fields.Title || "Feiertag"
+      name: i.fields.Title || "Feiertag",
+      wiederkehrend: i.fields.Wiederkehrend === true || i.fields.Wiederkehrend === 1
     }));
   } catch (err) {
     console.error("Feiertage konnten nicht geladen werden:", err);
@@ -660,7 +675,10 @@ async function ladeFeiertage() {
 }
 
 function istFeiertag(datumIso) {
-  return feiertageCache.find(f => f.datum === datumIso);
+  const monatTag = datumIso.slice(5); // "MM-DD"
+  return feiertageCache.find(f =>
+    f.datum === datumIso || (f.wiederkehrend && f.datum.slice(5) === monatTag)
+  );
 }
 
 // Liefert YYYY-MM-DD nach LOKALEM Datum (nicht UTC!) - wichtig, da toISOString()
@@ -1639,30 +1657,46 @@ async function loadEntraUsers() {
 // ============================================================
 // ADMIN/HR: FEIERTAGE VERWALTEN
 // ============================================================
+let bearbeitungFeiertagId = null;
+
 async function loadFeiertageListe() {
   try {
     const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_FEIERTAGE}/items?expand=fields`);
     const eintraege = data.value
-      .map(i => ({ id: i.id, datum: (i.fields.Datum || "").split("T")[0], name: i.fields.Title || "" }))
+      .map(i => ({
+        id: i.id,
+        datum: (i.fields.Datum || "").split("T")[0],
+        name: i.fields.Title || "",
+        wiederkehrend: i.fields.Wiederkehrend === true || i.fields.Wiederkehrend === 1
+      }))
       .sort((a, b) => a.datum.localeCompare(b.datum));
 
     // feiertageCache behaelt ALLE Eintraege (fuer Kalenderanzeige/Tage-Berechnung
     // auch in vergangenen Monaten) - nur die Verwaltungsliste wird eingegrenzt.
-    feiertageCache = eintraege.map(e => ({ datum: e.datum, name: e.name }));
+    feiertageCache = eintraege.map(e => ({ datum: e.datum, name: e.name, wiederkehrend: e.wiederkehrend }));
 
     const heute = new Date().getFullYear();
+    // Wiederkehrende Feiertage immer anzeigen (gelten fuer jedes Jahr), einmalige nur aktuelles/naechstes Jahr
     const relevante = eintraege.filter(e => {
+      if (e.wiederkehrend) return true;
       const j = Number(e.datum.slice(0, 4));
       return j === heute || j === heute + 1;
     });
     const anzahlAusgeblendet = eintraege.length - relevante.length;
 
-    const inhalt = (relevante.length === 0 ? "<p>Noch keine Feiertage für dieses/nächstes Jahr erfasst.</p>" : relevante.map(e => `
-      <div class="mitarbeiter-row">
-        <span class="name">${formatDate(e.datum)} <span style="color:#aaa;">– ${e.name}</span></span>
-        <button onclick="loescheFeiertag('${e.id}')" style="background:#c62828;">Entfernen</button>
-      </div>
-    `).join(""))
+    const zeileHtml = e => {
+      const badge = e.wiederkehrend ? `<span style="font-size:10.5px; background:var(--primary-light); color:var(--primary-dark); padding:2px 7px; border-radius:10px; margin-left:6px;">🔁 jährlich</span>` : "";
+      const datumsAnzeige = e.wiederkehrend ? formatTagMonat(e.datum) : formatDate(e.datum);
+      return `
+        <div class="mitarbeiter-row">
+          <span class="name">${datumsAnzeige} <span style="color:#aaa;">– ${e.name}</span>${badge}</span>
+          <button onclick="feiertagBearbeiten('${e.id}', '${e.datum}', '${e.name.replace(/'/g, "&#39;")}', ${e.wiederkehrend})" style="background:var(--bg); border:1px solid var(--border); color:var(--text);">Bearbeiten</button>
+          <button onclick="loescheFeiertag('${e.id}')" style="background:#c62828;">Entfernen</button>
+        </div>
+      `;
+    };
+
+    const inhalt = (relevante.length === 0 ? "<p>Noch keine Feiertage erfasst.</p>" : relevante.map(zeileHtml).join(""))
     + (anzahlAusgeblendet > 0 ? `<p style="font-size:11.5px; color:var(--text-soft); margin-top:8px;">+ ${anzahlAusgeblendet} weitere aus anderen Jahren (ausgeblendet, bleiben aber gespeichert)</p>` : "");
 
     ["admin", "hr"].forEach(prefix => {
@@ -1674,11 +1708,28 @@ async function loadFeiertageListe() {
   }
 }
 
+function feiertagBearbeiten(itemId, datum, name, wiederkehrend) {
+  bearbeitungFeiertagId = itemId;
+  ["neuer", "hrNeuer"].forEach(prefix => {
+    const datumEl = document.getElementById(prefix + "FeiertagDatum");
+    const nameEl = document.getElementById(prefix + "FeiertagName");
+    const wkEl = document.getElementById(prefix + "FeiertagWiederkehrend");
+    if (datumEl) datumEl.value = datum;
+    if (nameEl) nameEl.value = name;
+    if (wkEl) wkEl.checked = wiederkehrend;
+  });
+  document.getElementById("neuerFeiertagBtn").textContent = "Änderung speichern";
+  const hrBtn = document.getElementById("hrNeuerFeiertagBtn");
+  if (hrBtn) hrBtn.textContent = "Änderung speichern";
+}
+
 async function neuerFeiertagHinzufuegen(prefix) {
   const datumEl = document.getElementById(prefix + "FeiertagDatum");
   const nameEl = document.getElementById(prefix + "FeiertagName");
+  const wkEl = document.getElementById(prefix + "FeiertagWiederkehrend");
   const datum = datumEl.value;
   const name = nameEl.value.trim();
+  const wiederkehrend = wkEl ? wkEl.checked : false;
 
   if (!datum || !name) {
     showError(new Error("Bitte Datum und Name des Feiertags angeben."));
@@ -1686,12 +1737,27 @@ async function neuerFeiertagHinzufuegen(prefix) {
   }
 
   try {
-    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_FEIERTAGE}/items`, {
-      method: "POST",
-      body: JSON.stringify({ fields: { Title: name, Datum: new Date(datum).toISOString() } })
-    });
+    const fields = { Title: name, Datum: new Date(datum).toISOString(), Wiederkehrend: wiederkehrend };
+
+    if (bearbeitungFeiertagId) {
+      await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_FEIERTAGE}/items/${bearbeitungFeiertagId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ fields })
+      });
+      bearbeitungFeiertagId = null;
+      document.getElementById("neuerFeiertagBtn").textContent = "Feiertag hinzufügen";
+      const hrBtn = document.getElementById("hrNeuerFeiertagBtn");
+      if (hrBtn) hrBtn.textContent = "Feiertag hinzufügen";
+    } else {
+      await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_FEIERTAGE}/items`, {
+        method: "POST",
+        body: JSON.stringify({ fields })
+      });
+    }
+
     datumEl.value = "";
     nameEl.value = "";
+    if (wkEl) wkEl.checked = false;
     loadFeiertageListe();
   } catch (err) {
     showError(err);
@@ -1702,6 +1768,7 @@ async function loescheFeiertag(itemId) {
   if (!confirm("Diesen Feiertag entfernen?")) return;
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_FEIERTAGE}/items/${itemId}`, { method: "DELETE" });
+    if (bearbeitungFeiertagId === itemId) bearbeitungFeiertagId = null;
     loadFeiertageListe();
   } catch (err) {
     showError(err);
