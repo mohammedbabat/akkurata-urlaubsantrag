@@ -319,7 +319,10 @@
     </div>
 
     <div class="card">
-      <h2>Team-Übersicht</h2>
+      <h2 style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Team-Übersicht</span>
+        <select id="adminTeamJahrSelect" style="width:auto; margin:0; padding:6px 10px; font-size:13px; font-weight:600;"></select>
+      </h2>
       <div id="adminTeamUebersicht">Lade...</div>
     </div>
 
@@ -411,7 +414,10 @@
     </div>
 
     <div class="card">
-      <h2>Team-Übersicht</h2>
+      <h2 style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Team-Übersicht</span>
+        <select id="hrTeamJahrSelect" style="width:auto; margin:0; padding:6px 10px; font-size:13px; font-weight:600;"></select>
+      </h2>
       <div id="hrTeamUebersicht">Lade...</div>
     </div>
 
@@ -1136,6 +1142,8 @@ function kalenderAnsichtSetzen(ansicht) {
   renderTeamKalender();
 }
 
+let teamUebersichtJahr = new Date().getFullYear();
+
 async function loadAdminTeamDaten() {
   try {
     const [mitarbeiter, antraege] = await Promise.all([
@@ -1144,6 +1152,23 @@ async function loadAdminTeamDaten() {
     ]);
     adminAlleMitarbeiter = mitarbeiter.value;
     adminAlleAntraege = antraege.value;
+
+    // Jahres-Dropdown fuer die Team-Uebersicht befuellen
+    const heute = new Date().getFullYear();
+    const jahreSet = new Set([heute]);
+    adminAlleMitarbeiter.forEach(m => { if (m.fields.Jahr) jahreSet.add(m.fields.Jahr); });
+    const jahre = Array.from(jahreSet).sort((a, b) => b - a);
+    const optionsHtml = jahre.map(j => `<option value="${j}">${j}</option>`).join("");
+
+    ["admin", "hr"].forEach(prefix => {
+      const select = document.getElementById(prefix + "TeamJahrSelect");
+      if (!select) return;
+      const bisherGewaehlt = select.value ? Number(select.value) : teamUebersichtJahr;
+      select.innerHTML = optionsHtml;
+      select.value = jahre.includes(bisherGewaehlt) ? bisherGewaehlt : heute;
+      select.onchange = () => { teamUebersichtJahr = Number(select.value); renderAdminTeamUebersicht(); };
+    });
+
     renderAdminTeamUebersicht();
     renderTeamKalender();
   } catch (err) {
@@ -1164,7 +1189,7 @@ async function ladeTeamKalenderFuerAlle() {
 }
 
 function renderAdminTeamUebersicht() {
-  const jahr = new Date().getFullYear();
+  const jahr = teamUebersichtJahr;
   const mitarbeiterDiesesJahr = adminAlleMitarbeiter.filter(m => m.fields.Jahr === jahr);
 
   const rows = mitarbeiterDiesesJahr.map(m => {
