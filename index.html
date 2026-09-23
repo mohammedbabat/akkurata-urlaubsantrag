@@ -1464,6 +1464,7 @@ function renderMitarbeiterListe() {
       <input type="number" id="anspruch-${item.id}" value="${item.fields.JahresAnspruch || 0}" />
       <span style="font-size:11px; color:var(--text-soft);">Übertrag</span>
       <input type="number" id="uebertrag-${item.id}" value="${item.fields.Uebertrag || 0}" />
+      <button onclick="uebertragNeuBerechnen('${item.id}', '${(item.fields.Email || "").replace(/'/g, "&#39;")}', ${jahr})" title="Übertrag aus ${jahr - 1} neu berechnen" style="background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 9px;">↻</button>
       <button onclick="speichereAnspruch('${item.id}', this)">Speichern</button>
       <button onclick="loescheMitarbeiter('${item.id}')" style="background:#c62828;">Entfernen</button>
     </div>
@@ -1478,6 +1479,36 @@ function renderMitarbeiterListe() {
       btn.onclick = () => jahrUebernehmen(jahr, jahr + 1);
     }
   });
+}
+
+function berechneRestFuerJahr(email, jahr) {
+  const eintrag = alleMitarbeiterEintraegeCache.find(
+    i => (i.fields.Email || "").toLowerCase() === email.toLowerCase() && i.fields.Jahr === jahr
+  );
+  if (!eintrag) return null;
+
+  const anspruch = eintrag.fields.JahresAnspruch || 0;
+  const uebertrag = eintrag.fields.Uebertrag || 0;
+  let genommen = 0, ausstehend = 0;
+  adminAlleAntraege.forEach(a => {
+    const f = a.fields;
+    if ((f.AntragstellerEmail || "").toLowerCase() !== email.toLowerCase()) return;
+    if (new Date(f.VonDatum).getFullYear() !== jahr) return;
+    if (f.Urlaubsart === "Sonderurlaub") return;
+    if (f.Status === "Genehmigt") genommen += (f.AnzahlTage || 0);
+    else if (f.Status === "Ausstehend" || f.Status === "Storno beantragt") ausstehend += (f.AnzahlTage || 0);
+  });
+  return Math.max(0, (anspruch + uebertrag) - genommen - ausstehend);
+}
+
+function uebertragNeuBerechnen(itemId, email, jahr) {
+  const rest = berechneRestFuerJahr(email, jahr - 1);
+  const input = document.getElementById(`uebertrag-${itemId}`);
+  if (rest === null) {
+    showError(new Error(`Kein Eintrag für ${jahr - 1} gefunden – Übertrag kann nicht berechnet werden.`));
+    return;
+  }
+  if (input) input.value = rest;
 }
 
 async function jahrUebernehmen(vonJahr, nachJahr) {
