@@ -292,16 +292,10 @@
           <input type="date" id="bisDatum" />
         </div>
       </div>
-      <div class="row" style="margin:-6px 0 14px;">
-        <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin:0; cursor:pointer;">
-          <input type="checkbox" id="halbtagStart" style="width:auto; margin:0;" />
-          Halber Tag am ersten Tag
-        </label>
-        <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin:0; cursor:pointer;">
-          <input type="checkbox" id="halbtagEnde" style="width:auto; margin:0;" />
-          Halber Tag am letzten Tag
-        </label>
-      </div>
+      <label style="display:flex; align-items:center; gap:8px; font-size:13px; margin:-6px 0 14px; cursor:pointer;">
+        <input type="checkbox" id="halbtag" style="width:auto; margin:0;" />
+        Nur ein halber Tag (0,5 Tage)
+      </label>
       <label>Urlaubsart</label>
       <select id="urlaubsart">
         <option>Erholungsurlaub</option>
@@ -883,8 +877,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
   const bis = document.getElementById("bisDatum").value;
   const urlaubsart = document.getElementById("urlaubsart").value;
   const kommentar = document.getElementById("kommentar").value;
-  const halbStart = document.getElementById("halbtagStart").checked;
-  const halbEnde = document.getElementById("halbtagEnde").checked;
+  const halbtag = document.getElementById("halbtag").checked;
 
   if (!von || !bis) {
     showError(new Error("Bitte Von- und Bis-Datum angeben."));
@@ -896,10 +889,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
   btn.textContent = editItemId ? "Wird gespeichert..." : "Wird gesendet...";
 
   try {
-    let tage = berechneTage(von, bis);
-    if (halbStart) tage -= 0.5;
-    if (halbEnde) tage -= 0.5;
-    tage = Math.max(0.5, tage);
+    const tage = halbtag ? 0.5 : berechneTage(von, bis);
     const fields = {
       VonDatum: new Date(von).toISOString(),
       BisDatum: new Date(bis).toISOString(),
@@ -935,8 +925,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     document.getElementById("vonDatum").value = "";
     document.getElementById("bisDatum").value = "";
     document.getElementById("kommentar").value = "";
-    document.getElementById("halbtagStart").checked = false;
-    document.getElementById("halbtagEnde").checked = false;
+    document.getElementById("halbtag").checked = false;
     loadUebersichtUndHistorie();
     if (istAdmin) loadAdminTeamDaten();
   } catch (err) {
