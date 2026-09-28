@@ -305,6 +305,7 @@
         <input type="checkbox" id="halbtag" style="width:auto; margin:0;" />
         Nur ein halber Tag (0,5 Tage)
       </label>
+      <div id="tageAnzeige" style="display:none; background:var(--primary-light); color:var(--primary-dark); border-radius:10px; padding:10px 14px; margin:-6px 0 16px; font-size:14px; font-weight:600;"></div>
       <label>Urlaubsart</label>
       <select id="urlaubsart">
         <option>Erholungsurlaub</option>
@@ -893,6 +894,40 @@ function isoZuDateInput(iso) {
 
 let editItemId = null; // gesetzt, wenn gerade ein bestehender Antrag bearbeitet wird
 
+// ============================================================
+// LIVE-ANZEIGE DER TAGE (Neuer Antrag)
+// ============================================================
+function aktualisiereTageAnzeige() {
+  const von = document.getElementById("vonDatum").value;
+  const bis = document.getElementById("bisDatum").value;
+  const halbtag = document.getElementById("halbtag").checked;
+  const anzeige = document.getElementById("tageAnzeige");
+
+  if (!von || !bis) {
+    anzeige.style.display = "none";
+    return;
+  }
+  if (new Date(bis) < new Date(von)) {
+    anzeige.style.display = "block";
+    anzeige.style.background = "var(--danger-bg)";
+    anzeige.style.color = "var(--danger)";
+    anzeige.textContent = "„Bis“ liegt vor „Von“ – bitte Zeitraum prüfen.";
+    return;
+  }
+
+  const tage = halbtag ? 0.5 : berechneTage(von, bis);
+  anzeige.style.background = "var(--primary-light)";
+  anzeige.style.color = "var(--primary-dark)";
+  anzeige.style.display = "block";
+  anzeige.textContent = tage === 0
+    ? "0 Werktage in diesem Zeitraum (nur Wochenende/Feiertage)."
+    : `${tage % 1 === 0 ? tage : tage.toString().replace(".", ",")} Werktag${tage === 1 ? "" : "e"} (Wochenenden und Feiertage schon abgezogen)`;
+}
+
+["vonDatum", "bisDatum", "halbtag"].forEach(id => {
+  document.getElementById(id).addEventListener("change", aktualisiereTageAnzeige);
+});
+
 document.getElementById("submitBtn").addEventListener("click", async () => {
   const von = document.getElementById("vonDatum").value;
   const bis = document.getElementById("bisDatum").value;
@@ -947,6 +982,7 @@ document.getElementById("submitBtn").addEventListener("click", async () => {
     document.getElementById("bisDatum").value = "";
     document.getElementById("kommentar").value = "";
     document.getElementById("halbtag").checked = false;
+    aktualisiereTageAnzeige();
     loadUebersichtUndHistorie();
     if (istAdmin) loadAdminTeamDaten();
   } catch (err) {
@@ -969,9 +1005,11 @@ function starteBearbeitung(itemId, von, bis, urlaubsart, kommentar) {
   document.getElementById("bisDatum").value = bis;
   document.getElementById("urlaubsart").value = urlaubsart;
   document.getElementById("kommentar").value = kommentar || "";
+  document.getElementById("halbtag").checked = false;
   document.getElementById("submitBtn").textContent = "Änderungen speichern";
   document.getElementById("neuerAntragTitel").textContent = "Antrag bearbeiten";
   document.querySelector('.tab-btn[data-tab="neuerAntrag"]').click();
+  aktualisiereTageAnzeige();
 }
 
 function starteErneuteBeantragung(von, bis, urlaubsart, kommentar) {
@@ -980,9 +1018,11 @@ function starteErneuteBeantragung(von, bis, urlaubsart, kommentar) {
   document.getElementById("bisDatum").value = bis;
   document.getElementById("urlaubsart").value = urlaubsart;
   document.getElementById("kommentar").value = kommentar || "";
+  document.getElementById("halbtag").checked = false;
   document.getElementById("submitBtn").textContent = "Antrag senden";
   document.getElementById("neuerAntragTitel").textContent = "Neuer Urlaubsantrag";
   document.querySelector('.tab-btn[data-tab="neuerAntrag"]').click();
+  aktualisiereTageAnzeige();
 }
 
 async function zurueckziehen(itemId) {
