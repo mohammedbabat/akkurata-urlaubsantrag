@@ -191,6 +191,17 @@
   .kal-pill.ausstehend { background: var(--warning); }
   .kal-pill.feiertag { background: #fbbf24; color: #4a2c00; }
   .kal-day.ist-feiertag { background: #fffbeb; }
+  .kal-day.ist-heute { background: var(--primary-light); border: 1.5px solid var(--primary); }
+  .kal-heute-kreis {
+    display: inline-flex; align-items: center; justify-content: center;
+    background: var(--primary); color: white; border-radius: 50%;
+    width: 20px; height: 20px; font-weight: 700;
+  }
+  .kal-week-day.ist-heute { background: var(--primary-light); border: 1.5px solid var(--primary); }
+  .kal-week-day.ist-heute .kal-heute-kreis {
+    display: inline-block; background: none; color: var(--primary-dark); border-radius: 0;
+    width: auto; height: auto; font-weight: 700;
+  }
   .kal-mehr { font-size: 9px; color: var(--text-soft); font-weight: 600; }
   .team-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .team-row:last-child { border-bottom: none; }
@@ -1365,15 +1376,16 @@ function baueKalenderHtml(prefix) {
     const mehr = eintraege.length > maxAnzeige ? `<div class="kal-mehr">+${eintraege.length - maxAnzeige} mehr</div>` : "";
 
     const tagIso = localDatumIso(tag);
+    const istHeute = tagIso === localDatumIso(new Date());
     const feiertag = istFeiertag(tagIso);
     const pillsUndFeiertag = feiertag
       ? `<div class="kal-pill feiertag" title="${feiertag.name}">${feiertag.name}</div>${pills}`
       : pills;
 
     html += `
-      <div class="kal-day ${istAndererMonat ? 'andere-monat' : ''} ${eintraege.length ? 'hat-eintrag' : ''} ${feiertag ? 'ist-feiertag' : ''}"
+      <div class="kal-day ${istAndererMonat ? 'andere-monat' : ''} ${eintraege.length ? 'hat-eintrag' : ''} ${feiertag ? 'ist-feiertag' : ''} ${istHeute ? 'ist-heute' : ''}"
            ${eintraege.length ? `onclick="zeigeKalenderTag('${tagIso}','${prefix}')"` : ''}>
-        <div class="kal-daynum">${tag.getDate()}</div>
+        <div class="kal-daynum">${istHeute ? `<span class="kal-heute-kreis">${tag.getDate()}</span>` : tag.getDate()}</div>
         ${pillsUndFeiertag}
         ${mehr}
       </div>
@@ -1418,6 +1430,7 @@ function baueWochenHtml(prefix) {
     });
 
     const feiertag = istFeiertag(tagIso);
+    const istHeute = tagIso === localDatumIso(new Date());
     const feiertagHtml = feiertag ? `<div class="kal-pill feiertag" style="margin-bottom:3px; white-space:normal;">${feiertag.name}</div>` : "";
     const namenHtml = eintraege.map(e => {
       const f = e.fields;
@@ -1427,8 +1440,8 @@ function baueWochenHtml(prefix) {
     }).join("");
 
     html += `
-      <div class="kal-week-day">
-        <div class="kal-week-day-head">${wochentage[i]} · ${tag.getDate()}.${tag.getMonth()+1}.</div>
+      <div class="kal-week-day ${istHeute ? 'ist-heute' : ''}">
+        <div class="kal-week-day-head">${wochentage[i]} · ${istHeute ? `<span class="kal-heute-kreis">${tag.getDate()}.${tag.getMonth()+1}.</span>` : `${tag.getDate()}.${tag.getMonth()+1}.`}</div>
         ${feiertagHtml}
         ${namenHtml || '<div style="font-size:11px; color:var(--text-soft);">Kein Urlaub</div>'}
       </div>
