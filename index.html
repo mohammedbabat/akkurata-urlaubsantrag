@@ -67,6 +67,15 @@
   main, #genehmigungScreen { max-width: 1160px; margin: 28px auto; padding: 0 20px; display: none; width: 100%; box-sizing: border-box; }
   @media (max-width: 640px) {
     main, #genehmigungScreen { padding: 0 12px; margin: 16px auto; }
+    header { padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+    header h1 { font-size: 15px; }
+    #userInfo { font-size: 12.5px; gap: 8px; }
+    #logoutBtn { padding: 6px 12px; font-size: 12.5px; }
+    .tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; justify-content: flex-start; }
+    .tab-btn { flex: 0 0 auto; white-space: nowrap; padding: 9px 14px; }
+    .kal-day { min-height: 52px; font-size: 9px; padding: 3px; gap: 1px; }
+    .kal-pill { font-size: 8px; padding: 1px 4px; }
+    .kal-grid { gap: 2px; }
   }
   @media (min-width: 980px) {
     #tab-admin, #tab-hr { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
@@ -93,8 +102,8 @@
     transition: border-color 0.15s;
   }
   input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); background: white; }
-  .row { display: flex; gap: 12px; }
-  .row > div { flex: 1; }
+  .row { display: flex; flex-wrap: wrap; gap: 12px; }
+  .row > div { flex: 1; min-width: 140px; }
   button.primary {
     background: var(--primary); color: white; border: none; width: 100%;
     padding: 12px; border-radius: 10px; font-size: 14.5px; font-weight: 600; cursor: pointer;
@@ -152,7 +161,7 @@
   #genehmigungResult { display: none; text-align: center; padding: 24px; font-weight: 500; color: var(--text-soft); }
   .admin-item { border-bottom: 1px solid var(--border); padding: 14px 4px; }
   .admin-item:last-child { border-bottom: none; }
-  .mitarbeiter-row { display: flex; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); }
+  .mitarbeiter-row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 4px; border-bottom: 1px solid var(--border); }
   .mitarbeiter-row:last-child { border-bottom: none; }
   .mitarbeiter-row .name { flex: 1; font-size: 14px; font-weight: 500; }
   .mitarbeiter-row input { width: 70px; margin: 0; padding: 6px 8px; }
@@ -183,7 +192,7 @@
   .kal-pill.feiertag { background: #fbbf24; color: #4a2c00; }
   .kal-day.ist-feiertag { background: #fffbeb; }
   .kal-mehr { font-size: 9px; color: var(--text-soft); font-weight: 600; }
-  .team-row { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
+  .team-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); }
   .team-row:last-child { border-bottom: none; }
   .team-avatar {
     width: 36px; height: 36px; border-radius: 50%; background: var(--primary-light); color: var(--primary-dark);
@@ -590,6 +599,12 @@ async function init() {
       } else {
         ladeTeamKalenderFuerAlle();
       }
+
+      // Zuletzt aktiven Tab wiederherstellen (falls noch sichtbar/berechtigt), sonst Uebersicht
+      const gespeicherterTab = localStorage.getItem("urlaubsapp-aktiverTab");
+      if (!gespeicherterTab || !tabAktivieren(gespeicherterTab)) {
+        tabAktivieren("uebersicht");
+      }
     }
   }
 }
@@ -617,13 +632,19 @@ function showError(err) {
 }
 
 // Tabs
+function tabAktivieren(tabName) {
+  const btn = document.querySelector(`.tab-btn[data-tab="${tabName}"]`);
+  if (!btn || btn.style.display === "none") return false;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
+  btn.classList.add("active");
+  document.getElementById("tab-" + tabName).style.display = "block";
+  localStorage.setItem("urlaubsapp-aktiverTab", tabName);
+  return true;
+}
+
 document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => {
-    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
-    document.querySelectorAll(".tab-content").forEach(c => c.style.display = "none");
-    btn.classList.add("active");
-    document.getElementById("tab-" + btn.dataset.tab).style.display = "block";
-  });
+  btn.addEventListener("click", () => tabAktivieren(btn.dataset.tab));
 });
 
 // ============================================================
@@ -1807,7 +1828,8 @@ async function neuerFeiertagHinzufuegen(prefix) {
     datumEl.value = "";
     nameEl.value = "";
     if (wkEl) wkEl.checked = false;
-    loadFeiertageListe();
+    await loadFeiertageListe();
+    renderTeamKalender();
   } catch (err) {
     showError(err);
   }
@@ -1818,7 +1840,8 @@ async function loescheFeiertag(itemId) {
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_FEIERTAGE}/items/${itemId}`, { method: "DELETE" });
     if (bearbeitungFeiertagId === itemId) bearbeitungFeiertagId = null;
-    loadFeiertageListe();
+    await loadFeiertageListe();
+    renderTeamKalender();
   } catch (err) {
     showError(err);
   }
