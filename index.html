@@ -363,6 +363,14 @@
       <div id="adminTeamUebersicht">Lade...</div>
     </div>
 
+    <div class="card">
+      <h2>Mitarbeiter-Historie</h2>
+      <select id="adminHistorieMitarbeiterSelect" style="margin-bottom:16px;">
+        <option value="">Mitarbeiter auswählen...</option>
+      </select>
+      <div id="adminHistorieMitarbeiterListe"></div>
+    </div>
+
     <div class="card card-full">
       <h2 style="display:flex; align-items:center; justify-content:space-between;">
         <span>Team-Kalender</span>
@@ -456,6 +464,14 @@
         <select id="hrTeamJahrSelect" style="width:auto; margin:0; padding:6px 10px; font-size:13px; font-weight:600;"></select>
       </h2>
       <div id="hrTeamUebersicht">Lade...</div>
+    </div>
+
+    <div class="card">
+      <h2>Mitarbeiter-Historie</h2>
+      <select id="hrHistorieMitarbeiterSelect" style="margin-bottom:16px;">
+        <option value="">Mitarbeiter auswählen...</option>
+      </select>
+      <div id="hrHistorieMitarbeiterListe"></div>
     </div>
 
     <div class="card card-full">
@@ -1320,10 +1336,75 @@ async function loadAdminTeamDaten() {
       select.onchange = () => { teamUebersichtJahr = Number(select.value); renderAdminTeamUebersicht(); };
     });
 
+    // Mitarbeiter-Dropdown fuer die Historie-Ansicht befuellen (alle bekannten Mitarbeiter, ueber alle Jahre, dedupliziert)
+    const mitarbeiterMap = new Map();
+    adminAlleMitarbeiter.forEach(m => {
+      const email = (m.fields.Email || "").toLowerCase();
+      if (email && !mitarbeiterMap.has(email)) {
+        mitarbeiterMap.set(email, m.fields.Title || email);
+      }
+    });
+    const mitarbeiterOptionsHtml = '<option value="">Mitarbeiter auswählen...</option>' +
+      Array.from(mitarbeiterMap.entries())
+        .sort((a, b) => a[1].localeCompare(b[1]))
+        .map(([email, name]) => `<option value="${email}">${name}</option>`)
+        .join("");
+
+    ["admin", "hr"].forEach(prefix => {
+      const select = document.getElementById(prefix + "HistorieMitarbeiterSelect");
+      if (!select) return;
+      const bisherGewaehlt = select.value;
+      select.innerHTML = mitarbeiterOptionsHtml;
+      select.value = bisherGewaehlt;
+      select.onchange = () => ladeMitarbeiterHistorie(prefix, select.value);
+    });
+
     renderAdminTeamUebersicht();
     renderTeamKalender();
   } catch (err) {
     showError(err);
+  }
+}
+
+async function ladeMitarbeiterHistorie(prefix, email) {
+  const el = document.getElementById(prefix + "HistorieMitarbeiterListe");
+  if (!el) return;
+  if (!email) {
+    el.innerHTML = "";
+    return;
+  }
+  el.innerHTML = "Lade...";
+  try {
+    const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/AntragstellerEmail eq '${email}'`);
+    const items = data.value.sort((a, b) => new Date(b.fields.VonDatum) - new Date(a.fields.VonDatum));
+
+    if (items.length === 0) {
+      el.innerHTML = "<p>Noch keine Anträge.</p>";
+      return;
+    }
+
+    el.innerHTML = items.map(item => {
+      const f = item.fields;
+      const statusSuffix = (f.Status || "Ausstehend").replace(/\s/g, "");
+      const statusClass = "status-" + statusSuffix;
+      const kommentarZeile = (f.Status === "Abgelehnt" && f.GenehmigerKommentar)
+        ? `<div class="antrag-kommentar">${f.GenehmigerKommentar}</div>` : "";
+      return `
+        <div class="antrag-item border-${statusSuffix}">
+          <div class="antrag-item-top">
+            <div>
+              <div>${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)}</div>
+              <div class="antrag-meta">${f.Urlaubsart || ""} · ${f.AnzahlTage || "?"} Tage</div>
+            </div>
+            <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
+          </div>
+          ${kommentarZeile}
+        </div>
+      `;
+    }).join("");
+  } catch (err) {
+    showError(err);
+    el.innerHTML = "<p>Fehler beim Laden.</p>";
   }
 }
 
