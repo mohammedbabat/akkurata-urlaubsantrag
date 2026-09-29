@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Urlaubsantrag">
-<meta name="theme-color" content="#431407">
+<meta name="theme-color" content="#2d2653">
 
 <script src="https://alcdn.msauth.net/browser/2.38.2/js/msal-browser.min.js" crossorigin="anonymous"></script>
 <script>
@@ -22,30 +22,30 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2/dist/tabler-icons.min.css">
 <style>
   :root {
-    --primary: #f97316;
-    --primary-dark: #ea580c;
-    --primary-light: #ffedd5;
+    --primary: #6c5ce7;
+    --primary-dark: #5849c2;
+    --primary-light: #ede9fe;
     --success: #16a34a;
     --success-bg: #dcfce7;
     --danger: #dc2626;
     --danger-bg: #fee2e2;
-    --warning: #ca8a04;
-    --warning-bg: #fef9c3;
-    --gray-bg: #f5f1ee;
-    --text: #1c1410;
-    --text-soft: #78716c;
-    --border: #ece5df;
+    --warning: #d97706;
+    --warning-bg: #fef3c7;
+    --gray-bg: #f1f2f6;
+    --text: #16181d;
+    --text-soft: #6b7280;
+    --border: #e9e9ef;
     --surface: #ffffff;
-    --bg: #fdf8f5;
+    --bg: #f6f6fb;
     --radius: 14px;
   }
   * { box-sizing: border-box; }
   body {
     font-family: 'Inter', -apple-system, Segoe UI, Roboto, Arial, sans-serif;
     background:
-      radial-gradient(circle at 8% 0%, rgba(249, 115, 22, 0.14), transparent 42%),
-      radial-gradient(circle at 100% 10%, rgba(234, 88, 12, 0.12), transparent 38%),
-      radial-gradient(circle at 45% 100%, rgba(249, 115, 22, 0.10), transparent 45%),
+      radial-gradient(circle at 8% 0%, rgba(108, 92, 231, 0.14), transparent 42%),
+      radial-gradient(circle at 100% 10%, rgba(88, 73, 194, 0.12), transparent 38%),
+      radial-gradient(circle at 45% 100%, rgba(108, 92, 231, 0.10), transparent 45%),
       var(--bg);
     background-attachment: fixed;
     min-height: 100vh;
@@ -54,7 +54,7 @@
     -webkit-font-smoothing: antialiased;
   }
   header {
-    background: linear-gradient(135deg, #431407 0%, #ea580c 100%);
+    background: linear-gradient(135deg, #2d2653 0%, #4b3f8f 100%);
     color: white;
     padding: 18px 28px;
     display: flex;
@@ -408,6 +408,12 @@
       <div id="adminHistorieMitarbeiterListe"></div>
     </div>
 
+    <div class="card">
+      <h2>Datenexport</h2>
+      <p style="font-size:13px; color:var(--text-soft); margin:-8px 0 16px;">Exportiert alle Urlaubsanträge (alle Jahre, alle Status) als CSV-Datei – z.B. für die Lohnbuchhaltung.</p>
+      <button class="primary" id="adminCsvExportBtn">Als CSV exportieren</button>
+    </div>
+
     <div class="card card-full">
       <h2 style="display:flex; align-items:center; justify-content:space-between;">
         <span>Team-Kalender</span>
@@ -509,6 +515,12 @@
         <option value="">Mitarbeiter auswählen...</option>
       </select>
       <div id="hrHistorieMitarbeiterListe"></div>
+    </div>
+
+    <div class="card">
+      <h2>Datenexport</h2>
+      <p style="font-size:13px; color:var(--text-soft); margin:-8px 0 16px;">Exportiert alle Urlaubsanträge (alle Jahre, alle Status) als CSV-Datei – z.B. für die Lohnbuchhaltung.</p>
+      <button class="primary" id="hrCsvExportBtn">Als CSV exportieren</button>
     </div>
 
     <div class="card card-full">
@@ -1406,6 +1418,74 @@ async function loadAdminTeamDaten() {
     showError(err);
   }
 }
+
+// ============================================================
+// ADMIN/HR: CSV-EXPORT
+// ============================================================
+function csvFeldEscapen(wert) {
+  const s = (wert === null || wert === undefined) ? "" : String(wert);
+  if (s.includes(";") || s.includes('"') || s.includes("\n")) {
+    return '"' + s.replace(/"/g, '""') + '"';
+  }
+  return s;
+}
+
+async function exportiereCsv(btnEl) {
+  const ursprungsText = btnEl.textContent;
+  btnEl.disabled = true;
+  btnEl.textContent = "Exportiere...";
+  try {
+    const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields`);
+    const items = data.value.slice().sort((a, b) => new Date(a.fields.VonDatum) - new Date(b.fields.VonDatum));
+
+    const kopfzeile = ["Jahr", "Mitarbeiter", "Email", "Von", "Bis", "Anzahl Tage", "Urlaubsart", "Status", "Genehmigt von", "Genehmigt am", "Kommentar", "Genehmiger-Kommentar"];
+    const zeilen = [kopfzeile.map(csvFeldEscapen).join(";")];
+
+    items.forEach(item => {
+      const f = item.fields;
+      const jahr = f.VonDatum ? new Date(f.VonDatum).getFullYear() : "";
+      zeilen.push([
+        jahr,
+        f.AntragstellerName || "",
+        f.AntragstellerEmail || "",
+        formatDate(f.VonDatum),
+        formatDate(f.BisDatum),
+        f.AnzahlTage || "",
+        f.Urlaubsart || "",
+        f.Status || "",
+        f.GenehmigtVon || "",
+        f.Genehmigtam ? formatDate(f.Genehmigtam) : "",
+        f.Kommentar || "",
+        f.GenehmigerKommentar || ""
+      ].map(csvFeldEscapen).join(";"));
+    });
+
+    // BOM voranstellen, damit Excel Umlaute korrekt als UTF-8 erkennt
+    const csvInhalt = "\uFEFF" + zeilen.join("\r\n");
+    const blob = new Blob([csvInhalt], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const heute = localDatumIso(new Date());
+    link.href = url;
+    link.download = `Urlaubsantraege-Export-${heute}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    zeigeErfolg(`${items.length} Anträge exportiert`);
+  } catch (err) {
+    showError(err);
+  } finally {
+    btnEl.disabled = false;
+    btnEl.textContent = ursprungsText;
+  }
+}
+
+["adminCsvExportBtn", "hrCsvExportBtn"].forEach(id => {
+  const btn = document.getElementById(id);
+  if (btn) btn.addEventListener("click", () => exportiereCsv(btn));
+});
 
 async function ladeMitarbeiterHistorie(prefix, email) {
   const el = document.getElementById(prefix + "HistorieMitarbeiterListe");
