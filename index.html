@@ -617,6 +617,38 @@
 
 <div id="erfolgsToast" style="display:none; position:fixed; bottom:24px; left:50%; transform:translateX(-50%); background:var(--success); color:white; padding:13px 22px; border-radius:12px; font-size:14px; font-weight:600; box-shadow:0 8px 24px rgba(0,0,0,0.2); z-index:1001; transition:opacity 0.3s; max-width:90vw; text-align:center;"></div>
 
+<div id="adminBearbeitenOverlay" style="display:none; position:fixed; inset:0; background:rgba(20,20,43,0.45); z-index:1000; align-items:center; justify-content:center; padding:20px;">
+  <div style="background:white; border-radius:16px; padding:24px; max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto;">
+    <h2 style="font-size:16px; margin:0 0 4px;">Antrag bearbeiten (Admin)</h2>
+    <p id="adminBearbeitenMitarbeiterName" style="font-size:13px; color:var(--text-soft); margin:0 0 16px;"></p>
+    <div class="row">
+      <div>
+        <label>Von</label>
+        <input type="date" id="adminBearbeitenVon" />
+      </div>
+      <div>
+        <label>Bis</label>
+        <input type="date" id="adminBearbeitenBis" />
+      </div>
+    </div>
+    <label>Anzahl Tage</label>
+    <input type="number" step="0.5" id="adminBearbeitenTage" />
+    <label>Status</label>
+    <select id="adminBearbeitenStatus">
+      <option>Ausstehend</option>
+      <option>Genehmigt</option>
+      <option>Abgelehnt</option>
+      <option>Storniert</option>
+    </select>
+    <label>Kommentar / Grund der Änderung (optional)</label>
+    <textarea id="adminBearbeitenKommentar" rows="2" placeholder="z.B. Krankheit während des Urlaubs, ärztliches Attest vom ..."></textarea>
+    <div class="btn-row">
+      <button onclick="schliesseAdminBearbeiten()" style="background:var(--bg); color:var(--text); border:1px solid var(--border);">Abbrechen</button>
+      <button class="approve" onclick="speichereAdminBearbeiten()">Speichern</button>
+    </div>
+  </div>
+</div>
+
 <div id="genehmigungScreen">
   <div class="card">
     <h2>Genehmigungsanfrage</h2>
@@ -1506,6 +1538,9 @@ async function ladeMitarbeiterHistorie(prefix, email) {
 
     el.innerHTML = items.map(item => {
       const f = item.fields;
+      window.adminHistorieItemsMap = window.adminHistorieItemsMap || {};
+      window.adminHistorieItemsMap[item.id] = f;
+
       const statusSuffix = (f.Status || "Ausstehend").replace(/\s/g, "");
       const statusClass = "status-" + statusSuffix;
       const kommentarZeile = (f.Status === "Abgelehnt" && f.GenehmigerKommentar)
@@ -1520,8 +1555,91 @@ async function ladeMitarbeiterHistorie(prefix, email) {
             <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
           </div>
           ${kommentarZeile}
+          <div class="btn-row">
+            <button style="background:var(--bg); color:var(--text); border:1px solid var(--border);" onclick="oeffneAdminBearbeiten('${item.id}')">Bearbeiten (Admin)</button>
+          </div>
         </div>
       `;
+    }).join("");
+  } catch (err) {
+    showError(err);
+    el.innerHTML = "<p>Fehler beim Laden.</p>";
+  }
+}
+
+// ============================================================
+// ADMIN: BELIEBIGEN ANTRAG DIREKT BEARBEITEN (ohne erneute Genehmigung)
+// ============================================================
+let adminBearbeitenItemId = null;
+
+function oeffneAdminBearbeiten(itemId) {
+  const f = window.adminHistorieItemsMap[itemId];
+  if (!f) return;
+  adminBearbeitenItemId = itemId;
+  document.getElementById("adminBearbeitenMitarbeiterName").textContent = f.AntragstellerName || f.AntragstellerEmail || "";
+  document.getElementById("adminBearbeitenVon").value = isoZuDateInput(f.VonDatum);
+  document.getElementById("adminBearbeitenBis").value = isoZuDateInput(f.BisDatum);
+  document.getElementById("adminBearbeitenTage").value = f.AnzahlTage || "";
+  document.getElementById("adminBearbeitenStatus").value = f.Status || "Ausstehend";
+  document.getElementById("adminBearbeitenKommentar").value = "";
+  document.getElementById("adminBearbeitenOverlay").style.display = "flex";
+}
+
+function schliesseAdminBearbeiten() {
+  adminBearbeitenItemId = null;
+  document.getElementById("adminBearbeitenOverlay").style.display = "none";
+}
+
+async function speichereAdminBearbeiten() {
+  if (!adminBearbeitenItemId) return;
+  const von = document.getElementById("adminBearbeitenVon").value;
+  const bis = document.getElementById("adminBearbeitenBis").value;
+  const tage = document.getElementById("adminBearbeitenTage").value;
+  const status = document.getElementById("adminBearbeitenStatus").value;
+  const kommentar = document.getElementById("adminBearbeitenKommentar").value.trim();
+
+  if (!von || !bis || !tage) {
+    showError(new Error("Bitte Von, Bis und Anzahl Tage angeben."));
+    return;
+  }
+
+  try {
+    const bisheriger = window.adminHistorieItemsMap[adminBearbeitenItemId] || {};
+    const name = currentAccount.name || currentAccount.username;
+    const datum = new Date().toLocaleDateString("de-DE");
+    let vermerk = `Manuell angepasst durch ${name} am ${datum}`;
+    if (kommentar) vermerk += `: ${kommentar}`;
+    const genehmigtVon = bisheriger.GenehmigtVon ? bisheriger.GenehmigtVon + "\n" + vermerk : vermerk;
+
+    await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${adminBearbeitenItemId}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        fields: {
+          VonDatum: new Date(von).toISOString(),
+          BisDatum: new Date(bis).toISOString(),
+          AnzahlTage: Number(tage),
+          Status: status,
+          GenehmigtVon: genehmigtVon
+        }
+      })
+    });
+
+    schliesseAdminBearbeiten();
+    zeigeErfolg("Antrag angepasst");
+
+    // Betroffene Ansichten aktualisieren
+    ["admin", "hr"].forEach(prefix => {
+      const select = document.getElementById(prefix + "HistorieMitarbeiterSelect");
+      if (select && select.value) ladeMitarbeiterHistorie(prefix, select.value);
+    });
+    loadAdminTeamDaten();
+    loadAdminOffeneAntraege();
+    loadHROffeneAntraege();
+  } catch (err) {
+    showError(err);
+  }
+}
+
     }).join("");
   } catch (err) {
     showError(err);
