@@ -619,32 +619,19 @@
 
 <div id="adminBearbeitenOverlay" style="display:none; position:fixed; inset:0; background:rgba(20,20,43,0.45); z-index:1000; align-items:center; justify-content:center; padding:20px;">
   <div style="background:white; border-radius:16px; padding:24px; max-width:420px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.3); max-height:90vh; overflow-y:auto;">
-    <h2 style="font-size:16px; margin:0 0 4px;">Antrag bearbeiten (Admin)</h2>
-    <p id="adminBearbeitenMitarbeiterName" style="font-size:13px; color:var(--text-soft); margin:0 0 16px;"></p>
-    <div class="row">
-      <div>
-        <label>Von</label>
-        <input type="date" id="adminBearbeitenVon" />
-      </div>
-      <div>
-        <label>Bis</label>
-        <input type="date" id="adminBearbeitenBis" />
-      </div>
-    </div>
-    <label>Anzahl Tage</label>
-    <input type="number" step="0.5" id="adminBearbeitenTage" />
-    <label>Status</label>
-    <select id="adminBearbeitenStatus">
-      <option>Ausstehend</option>
-      <option>Genehmigt</option>
-      <option>Abgelehnt</option>
-      <option>Storniert</option>
-    </select>
-    <label>Kommentar / Grund der Änderung (optional)</label>
-    <textarea id="adminBearbeitenKommentar" rows="2" placeholder="z.B. Krankheit während des Urlaubs, ärztliches Attest vom ..."></textarea>
+    <h2 style="font-size:16px; margin:0 0 4px;">Krankheit während des Urlaubs</h2>
+    <p id="adminBearbeitenMitarbeiterName" style="font-size:13px; color:var(--text-soft); margin:0 0 4px;"></p>
+    <p id="adminBearbeitenZeitraum" style="font-size:13px; color:var(--text-soft); margin:0 0 16px;"></p>
+    <label>Krank von</label>
+    <input type="date" id="adminKrankVon" />
+    <label>Krank bis</label>
+    <input type="date" id="adminKrankBis" />
+    <div id="adminKrankVorschau" style="display:none; background:var(--primary-light); color:var(--primary-dark); border-radius:10px; padding:10px 14px; margin:0 0 16px; font-size:13.5px; font-weight:600; line-height:1.5;"></div>
+    <label>Ärztliches Attest / Anmerkung (optional)</label>
+    <textarea id="adminKrankAttest" rows="2" placeholder="z.B. Attest vom 06.10.2026 vorgelegt"></textarea>
     <div class="btn-row">
       <button onclick="schliesseAdminBearbeiten()" style="background:var(--bg); color:var(--text); border:1px solid var(--border);">Abbrechen</button>
-      <button class="approve" onclick="speichereAdminBearbeiten()">Speichern</button>
+      <button class="approve" onclick="speichereAdminBearbeiten()">Krankheit gutschreiben</button>
     </div>
   </div>
 </div>
@@ -997,6 +984,8 @@ function renderHistorieListe(items) {
       const statusClass = "status-" + statusSuffix;
       const kommentarZeile = (f.Status === "Abgelehnt" && f.GenehmigerKommentar)
         ? `<div class="antrag-kommentar">${f.GenehmigerKommentar}</div>` : "";
+      const adminNotizZeile = f.AdminNotiz
+        ? `<div class="antrag-kommentar" style="color:var(--primary-dark);">ℹ️ ${f.AdminNotiz.split("\n").join("<br>")}</div>` : "";
 
       let aktionen = "";
       if (f.Status === "Ausstehend") {
@@ -1029,6 +1018,7 @@ function renderHistorieListe(items) {
             <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
           </div>
           ${kommentarZeile}
+          ${adminNotizZeile}
           ${aktionen}
         </div>
       `;
@@ -1545,6 +1535,8 @@ async function ladeMitarbeiterHistorie(prefix, email) {
       const statusClass = "status-" + statusSuffix;
       const kommentarZeile = (f.Status === "Abgelehnt" && f.GenehmigerKommentar)
         ? `<div class="antrag-kommentar">${f.GenehmigerKommentar}</div>` : "";
+      const adminNotizZeile = f.AdminNotiz
+        ? `<div class="antrag-kommentar" style="color:var(--primary-dark);">ℹ️ ${f.AdminNotiz.split("\n").join("<br>")}</div>` : "";
       return `
         <div class="antrag-item border-${statusSuffix}">
           <div class="antrag-item-top">
@@ -1555,6 +1547,7 @@ async function ladeMitarbeiterHistorie(prefix, email) {
             <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
           </div>
           ${kommentarZeile}
+          ${adminNotizZeile}
           <div class="btn-row">
             <button style="background:var(--bg); color:var(--text); border:1px solid var(--border);" onclick="oeffneAdminBearbeiten('${item.id}')">Bearbeiten (Admin)</button>
           </div>
@@ -1568,20 +1561,104 @@ async function ladeMitarbeiterHistorie(prefix, email) {
 }
 
 // ============================================================
-// ADMIN: BELIEBIGEN ANTRAG DIREKT BEARBEITEN (ohne erneute Genehmigung)
+// ADMIN: KRANKHEIT WÄHREND DES URLAUBS GUTSCHREIBEN
 // ============================================================
 let adminBearbeitenItemId = null;
+
+function localDateFromIso(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function berechneAngepassteWerte(f, krankVonEingabe, krankBisEingabe) {
+  const originalVon = isoZuDateInput(f.VonDatum);
+  const originalBis = isoZuDateInput(f.BisDatum);
+  // Auf den urspruenglichen Zeitraum begrenzen, falls Admin einen weiteren Bereich eingibt
+  const kVon = krankVonEingabe < originalVon ? originalVon : krankVonEingabe;
+  const kBis = krankBisEingabe > originalBis ? originalBis : krankBisEingabe;
+  if (kVon > kBis) return null;
+
+  const gutgeschrieben = berechneTage(kVon, kBis);
+  const decktAnfang = kVon <= originalVon;
+  const decktEnde = kBis >= originalBis;
+
+  if (decktAnfang && decktEnde) {
+    return { fall: "komplett", gutgeschrieben, neuVon: originalVon, neuBis: originalBis, neueTage: 0, zweitesSegment: null };
+  }
+  if (decktAnfang) {
+    const neuVonDate = localDateFromIso(kBis); neuVonDate.setDate(neuVonDate.getDate() + 1);
+    const neuVon = localDatumIso(neuVonDate);
+    return { fall: "anfang", gutgeschrieben, neuVon, neuBis: originalBis, neueTage: berechneTage(neuVon, originalBis), zweitesSegment: null };
+  }
+  if (decktEnde) {
+    const neuBisDate = localDateFromIso(kVon); neuBisDate.setDate(neuBisDate.getDate() - 1);
+    const neuBis = localDatumIso(neuBisDate);
+    return { fall: "ende", gutgeschrieben, neuVon: originalVon, neuBis, neueTage: berechneTage(originalVon, neuBis), zweitesSegment: null };
+  }
+  // Krankheit liegt mitten im Urlaub -> Antrag wird in zwei Abschnitte geteilt
+  const ersteBisDate = localDateFromIso(kVon); ersteBisDate.setDate(ersteBisDate.getDate() - 1);
+  const ersteBis = localDatumIso(ersteBisDate);
+  const zweiteVonDate = localDateFromIso(kBis); zweiteVonDate.setDate(zweiteVonDate.getDate() + 1);
+  const zweiteVon = localDatumIso(zweiteVonDate);
+
+  return {
+    fall: "mitte", gutgeschrieben,
+    neuVon: originalVon, neuBis: ersteBis, neueTage: berechneTage(originalVon, ersteBis),
+    zweitesSegment: { von: zweiteVon, bis: originalBis, tage: berechneTage(zweiteVon, originalBis) }
+  };
+}
+
+function aktualisiereKrankVorschau() {
+  const f = window.adminHistorieItemsMap[adminBearbeitenItemId];
+  const vorschau = document.getElementById("adminKrankVorschau");
+  const krankVon = document.getElementById("adminKrankVon").value;
+  const krankBis = document.getElementById("adminKrankBis").value;
+
+  if (!f || !krankVon || !krankBis) {
+    vorschau.style.display = "none";
+    return;
+  }
+
+  const plan = berechneAngepassteWerte(f, krankVon, krankBis);
+  vorschau.style.display = "block";
+
+  if (!plan) {
+    vorschau.style.background = "var(--danger-bg)";
+    vorschau.style.color = "var(--danger)";
+    vorschau.textContent = "„Krank bis“ liegt vor „Krank von“ – bitte Zeitraum prüfen.";
+    return;
+  }
+
+  vorschau.style.background = "var(--primary-light)";
+  vorschau.style.color = "var(--primary-dark)";
+
+  if (plan.fall === "komplett") {
+    vorschau.textContent = `Der gesamte Antrag wird storniert – alle ${f.AnzahlTage} Tage werden gutgeschrieben.`;
+  } else if (plan.fall === "mitte") {
+    vorschau.textContent = `${plan.gutgeschrieben} Tag(e) werden gutgeschrieben. Der Urlaub wird geteilt: ${formatDate(plan.neuVon)}–${formatDate(plan.neuBis)} (${plan.neueTage} Tage) und ${formatDate(plan.zweitesSegment.von)}–${formatDate(plan.zweitesSegment.bis)} (${plan.zweitesSegment.tage} Tage).`;
+  } else {
+    vorschau.textContent = `${plan.gutgeschrieben} Tag(e) werden gutgeschrieben. Neuer Urlaubszeitraum: ${formatDate(plan.neuVon)}–${formatDate(plan.neuBis)} (${plan.neueTage} Tage).`;
+  }
+}
+
+["adminKrankVon", "adminKrankBis"].forEach(id => {
+  document.getElementById(id).addEventListener("change", aktualisiereKrankVorschau);
+});
 
 function oeffneAdminBearbeiten(itemId) {
   const f = window.adminHistorieItemsMap[itemId];
   if (!f) return;
   adminBearbeitenItemId = itemId;
   document.getElementById("adminBearbeitenMitarbeiterName").textContent = f.AntragstellerName || f.AntragstellerEmail || "";
-  document.getElementById("adminBearbeitenVon").value = isoZuDateInput(f.VonDatum);
-  document.getElementById("adminBearbeitenBis").value = isoZuDateInput(f.BisDatum);
-  document.getElementById("adminBearbeitenTage").value = f.AnzahlTage || "";
-  document.getElementById("adminBearbeitenStatus").value = f.Status || "Ausstehend";
-  document.getElementById("adminBearbeitenKommentar").value = "";
+  document.getElementById("adminBearbeitenZeitraum").textContent = `Bisheriger Zeitraum: ${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)} (${f.AnzahlTage} Tage)`;
+  document.getElementById("adminKrankVon").value = isoZuDateInput(f.VonDatum);
+  document.getElementById("adminKrankVon").min = isoZuDateInput(f.VonDatum);
+  document.getElementById("adminKrankVon").max = isoZuDateInput(f.BisDatum);
+  document.getElementById("adminKrankBis").value = "";
+  document.getElementById("adminKrankBis").min = isoZuDateInput(f.VonDatum);
+  document.getElementById("adminKrankBis").max = isoZuDateInput(f.BisDatum);
+  document.getElementById("adminKrankAttest").value = "";
+  document.getElementById("adminKrankVorschau").style.display = "none";
   document.getElementById("adminBearbeitenOverlay").style.display = "flex";
 }
 
@@ -1592,42 +1669,66 @@ function schliesseAdminBearbeiten() {
 
 async function speichereAdminBearbeiten() {
   if (!adminBearbeitenItemId) return;
-  const von = document.getElementById("adminBearbeitenVon").value;
-  const bis = document.getElementById("adminBearbeitenBis").value;
-  const tage = document.getElementById("adminBearbeitenTage").value;
-  const status = document.getElementById("adminBearbeitenStatus").value;
-  const kommentar = document.getElementById("adminBearbeitenKommentar").value.trim();
+  const f = window.adminHistorieItemsMap[adminBearbeitenItemId];
+  const krankVon = document.getElementById("adminKrankVon").value;
+  const krankBis = document.getElementById("adminKrankBis").value;
+  const attest = document.getElementById("adminKrankAttest").value.trim();
 
-  if (!von || !bis || !tage) {
-    showError(new Error("Bitte Von, Bis und Anzahl Tage angeben."));
+  if (!krankVon || !krankBis) {
+    showError(new Error("Bitte Krank-von und Krank-bis angeben."));
+    return;
+  }
+  const plan = berechneAngepassteWerte(f, krankVon, krankBis);
+  if (!plan) {
+    showError(new Error("„Krank bis“ liegt vor „Krank von“ – bitte Zeitraum prüfen."));
     return;
   }
 
   try {
-    const bisheriger = window.adminHistorieItemsMap[adminBearbeitenItemId] || {};
     const name = currentAccount.name || currentAccount.username;
     const datum = new Date().toLocaleDateString("de-DE");
-    let vermerk = `Manuell angepasst durch ${name} am ${datum}`;
-    if (kommentar) vermerk += `: ${kommentar}`;
-    const genehmigtVon = bisheriger.GenehmigtVon ? bisheriger.GenehmigtVon + "\n" + vermerk : vermerk;
+    let notiz = `Krankheit vom ${formatDate(krankVon)} bis ${formatDate(krankBis)} während des Urlaubs gemeldet – ${plan.gutgeschrieben} Tag(e) gutgeschrieben (angepasst von ${name} am ${datum})`;
+    if (attest) notiz += `. ${attest}`;
+    const bisherigeNotiz = f.AdminNotiz ? f.AdminNotiz + "\n" + notiz : notiz;
+
+    const updateFields = {
+      VonDatum: new Date(plan.neuVon).toISOString(),
+      BisDatum: new Date(plan.neuBis).toISOString(),
+      AnzahlTage: plan.neueTage,
+      AdminNotiz: bisherigeNotiz
+    };
+    if (plan.fall === "komplett") {
+      updateFields.Status = "Storniert";
+    }
 
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items/${adminBearbeitenItemId}`, {
       method: "PATCH",
-      body: JSON.stringify({
-        fields: {
-          VonDatum: new Date(von).toISOString(),
-          BisDatum: new Date(bis).toISOString(),
-          AnzahlTage: Number(tage),
-          Status: status,
-          GenehmigtVon: genehmigtVon
-        }
-      })
+      body: JSON.stringify({ fields: updateFields })
     });
 
-    schliesseAdminBearbeiten();
-    zeigeErfolg("Antrag angepasst");
+    if (plan.zweitesSegment) {
+      const zweiteNotiz = `Zweiter Teil des ursprünglichen Antrags (${formatDate(f.VonDatum)}–${formatDate(f.BisDatum)}), aufgeteilt wegen Krankheit vom ${formatDate(krankVon)} bis ${formatDate(krankBis)} (angepasst von ${name} am ${datum})`;
+      await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items`, {
+        method: "POST",
+        body: JSON.stringify({
+          fields: {
+            Title: `Antrag-${Date.now()}`,
+            AntragstellerEmail: f.AntragstellerEmail,
+            AntragstellerName: f.AntragstellerName,
+            VonDatum: new Date(plan.zweitesSegment.von).toISOString(),
+            BisDatum: new Date(plan.zweitesSegment.bis).toISOString(),
+            AnzahlTage: plan.zweitesSegment.tage,
+            Urlaubsart: f.Urlaubsart || "Erholungsurlaub",
+            Status: f.Status || "Genehmigt",
+            AdminNotiz: zweiteNotiz
+          }
+        })
+      });
+    }
 
-    // Betroffene Ansichten aktualisieren
+    schliesseAdminBearbeiten();
+    zeigeErfolg("Krankheit gutgeschrieben");
+
     ["admin", "hr"].forEach(prefix => {
       const select = document.getElementById(prefix + "HistorieMitarbeiterSelect");
       if (select && select.value) ladeMitarbeiterHistorie(prefix, select.value);
