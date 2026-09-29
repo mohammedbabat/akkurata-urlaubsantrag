@@ -1640,13 +1640,6 @@ async function speichereAdminBearbeiten() {
   }
 }
 
-    }).join("");
-  } catch (err) {
-    showError(err);
-    el.innerHTML = "<p>Fehler beim Laden.</p>";
-  }
-}
-
 // Fuer alle Mitarbeiter (nicht nur Admin/HR): laedt nur die Antraege, die fuer den
 // Team-Kalender in der normalen Uebersicht gebraucht werden.
 async function ladeTeamKalenderFuerAlle() {
