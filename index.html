@@ -1629,16 +1629,28 @@ function aktualisiereKrankVorschau() {
     return;
   }
 
+  const originalVon = isoZuDateInput(f.VonDatum);
+  const originalBis = isoZuDateInput(f.BisDatum);
+  const hinweisZeilen = [];
+  if (krankVon < originalVon) {
+    hinweisZeilen.push(`Hinweis: „Krank von" (${formatDate(krankVon)}) lag vor Urlaubsbeginn und wurde auf ${formatDate(originalVon)} begrenzt.`);
+  }
+  if (krankBis > originalBis) {
+    hinweisZeilen.push(`Hinweis: „Krank bis" (${formatDate(krankBis)}) lag nach Urlaubsende und wurde auf ${formatDate(originalBis)} begrenzt.`);
+  }
+
   vorschau.style.background = "var(--primary-light)";
   vorschau.style.color = "var(--primary-dark)";
 
+  let ergebnisText;
   if (plan.fall === "komplett") {
-    vorschau.textContent = `Der gesamte Antrag wird storniert – alle ${f.AnzahlTage} Tage werden gutgeschrieben.`;
+    ergebnisText = `Der gesamte Antrag wird storniert – alle ${f.AnzahlTage} Tage werden gutgeschrieben.`;
   } else if (plan.fall === "mitte") {
-    vorschau.textContent = `${plan.gutgeschrieben} Tag(e) werden gutgeschrieben. Der Urlaub wird geteilt: ${formatDate(plan.neuVon)}–${formatDate(plan.neuBis)} (${plan.neueTage} Tage) und ${formatDate(plan.zweitesSegment.von)}–${formatDate(plan.zweitesSegment.bis)} (${plan.zweitesSegment.tage} Tage).`;
+    ergebnisText = `${plan.gutgeschrieben} Tag(e) werden gutgeschrieben. Der Urlaub wird geteilt: ${formatDate(plan.neuVon)}–${formatDate(plan.neuBis)} (${plan.neueTage} Tage) und ${formatDate(plan.zweitesSegment.von)}–${formatDate(plan.zweitesSegment.bis)} (${plan.zweitesSegment.tage} Tage).`;
   } else {
-    vorschau.textContent = `${plan.gutgeschrieben} Tag(e) werden gutgeschrieben. Neuer Urlaubszeitraum: ${formatDate(plan.neuVon)}–${formatDate(plan.neuBis)} (${plan.neueTage} Tage).`;
+    ergebnisText = `${plan.gutgeschrieben} Tag(e) werden gutgeschrieben. Neuer Urlaubszeitraum: ${formatDate(plan.neuVon)}–${formatDate(plan.neuBis)} (${plan.neueTage} Tage).`;
   }
+  vorschau.innerHTML = [...hinweisZeilen, ergebnisText].map(t => `<div>${t}</div>`).join("");
 }
 
 ["adminKrankVon", "adminKrankBis"].forEach(id => {
