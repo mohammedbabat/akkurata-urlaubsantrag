@@ -256,6 +256,18 @@
   .team-row .team-stat .lbl { font-size: 10px; color: var(--text-soft); text-transform: uppercase; }
 
   #adminSection > h2 { font-size: 16px; margin-bottom: 12px; }
+
+  .site-footer { max-width: 1200px; margin: 24px auto 28px; padding: 0 16px; text-align: center; font-size: 12.5px; color: var(--text-soft); }
+  .site-footer a, .site-footer button { color: var(--text-soft); background: none; border: 0; padding: 0; font: inherit; text-decoration: underline; cursor: pointer; margin: 0 8px; }
+  .site-footer a:hover, .site-footer button:hover { color: var(--primary); }
+  #datenschutzDialog { border: 0; border-radius: var(--radius); padding: 0; width: min(640px, calc(100vw - 32px)); max-height: 85vh; box-shadow: 0 20px 60px rgba(0,0,0,.25); color: var(--text); }
+  #datenschutzDialog::backdrop { background: rgba(22,24,29,.5); }
+  #datenschutzDialog .ds-body { padding: 22px 24px 8px; overflow-y: auto; max-height: calc(85vh - 70px); font-size: 14px; line-height: 1.55; }
+  #datenschutzDialog h2 { margin: 0 0 12px; font-size: 20px; }
+  #datenschutzDialog h3 { margin: 16px 0 4px; font-size: 14px; }
+  #datenschutzDialog p, #datenschutzDialog ul { margin: 0 0 6px; }
+  #datenschutzDialog ul { padding-left: 20px; }
+  #datenschutzDialog .ds-actions { padding: 12px 24px 18px; text-align: right; }
 </style>
 </head>
 <body>
@@ -609,6 +621,43 @@
   </div>
   </div>
 </main>
+
+<footer class="site-footer">
+  <button type="button" id="datenschutzBtn">Datenschutz</button>·
+  <a href="https://www.akkurata-treuhand.de/impressum/" target="_blank" rel="noopener">Impressum</a>
+</footer>
+
+<dialog id="datenschutzDialog">
+  <div class="ds-body">
+    <h2>Datenschutzhinweis zur Urlaubs-App</h2>
+    <h3>Verantwortlicher</h3>
+    <p>AKKURATA Treuhand GmbH, Aachener Stra&szlig;e 1053 - 1055, 50858 K&ouml;ln, Telefon +49 221 948890, info@akkurata-treuhand.de</p>
+    <h3>Zweck und Rechtsgrundlage</h3>
+    <p>Die App dient der Beantragung, Genehmigung und Verwaltung von Urlaub. Rechtsgrundlage ist die Durchf&uuml;hrung des Besch&auml;ftigungsverh&auml;ltnisses (Art. 6 Abs. 1 lit. b DSGVO i. V. m. &sect; 26 BDSG).</p>
+    <h3>Welche Daten werden verarbeitet?</h3>
+    <ul>
+      <li>Name und dienstliche E-Mail-Adresse (aus deinem Microsoft-365-Konto)</li>
+      <li>Urlaubsantr&auml;ge: Zeitraum, Art, Status, Bearbeitungs- und Genehmigungsvermerke, Anmerkungen</li>
+      <li>Urlaubsanspruch, Resturlaub und &Uuml;bertrag</li>
+    </ul>
+    <h3>Wer sieht welche Daten?</h3>
+    <ul>
+      <li>Die Gesch&auml;ftsf&uuml;hrung sieht und bearbeitet alle Antr&auml;ge.</li>
+      <li>Die Personalverwaltung (HR) hat Leserechte auf alle Antr&auml;ge.</li>
+      <li>Alle Mitarbeitenden sehen im Team-Kalender die Abwesenheitszeitr&auml;ume der Kolleginnen und Kollegen.</li>
+      <li>Du siehst deine eigenen Antr&auml;ge und deinen Urlaubsstand.</li>
+    </ul>
+    <h3>Speicherort und Hosting</h3>
+    <p>Die Daten werden in SharePoint Online (Microsoft 365) der AKKURATA Treuhand GmbH gespeichert. Die Anmeldung erfolgt &uuml;ber Microsoft Entra ID. Die Webseite der App wird &uuml;ber GitHub Pages ausgeliefert; beim Aufruf der Seite wird dabei technisch bedingt deine IP-Adresse verarbeitet, Urlaubsdaten werden dort nicht gespeichert.</p>
+    <h3>Speicherdauer</h3>
+    <p>Die Daten werden f&uuml;r die Dauer des Besch&auml;ftigungsverh&auml;ltnisses gespeichert und danach nach den gesetzlichen Aufbewahrungsfristen gel&ouml;scht.</p>
+    <h3>Deine Rechte</h3>
+    <p>Du hast das Recht auf Auskunft, Berichtigung, L&ouml;schung, Einschr&auml;nkung der Verarbeitung und Widerspruch sowie das Recht auf Beschwerde bei einer Datenschutzaufsichtsbeh&ouml;rde. Wende dich dazu an die Gesch&auml;ftsf&uuml;hrung.</p>
+    <p style="margin-top:12px;color:var(--text-soft);font-size:12.5px;">Stand: Oktober 2026</p>
+  </div>
+  <div class="ds-actions"><button type="button" id="datenschutzClose">Schlie&szlig;en</button></div>
+</dialog>
+
 
 <div id="bestaetigungsOverlay" style="display:none; position:fixed; inset:0; background:rgba(20,20,43,0.45); z-index:1000; align-items:center; justify-content:center; padding:20px;">
   <div style="background:white; border-radius:16px; padding:24px; max-width:400px; width:100%; box-shadow:0 20px 60px rgba(0,0,0,0.3);">
@@ -2477,6 +2526,14 @@ if (hrNeuerBtn) hrNeuerBtn.addEventListener("click", () => neuerMitarbeiterHinzu
     sidebarLogo.src = headerLogo.src;
     sidebarLogo.style.display = "block";
   }
+})();
+
+// Datenschutz-Dialog
+(function() {
+  const dlg = document.getElementById("datenschutzDialog");
+  document.getElementById("datenschutzBtn").addEventListener("click", function() { dlg.showModal(); });
+  document.getElementById("datenschutzClose").addEventListener("click", function() { dlg.close(); });
+  dlg.addEventListener("click", function(e) { if (e.target === dlg) dlg.close(); });
 })();
 
 init();
