@@ -802,6 +802,8 @@ function showApp() {
 
 function showError(err) {
   console.error(err);
+  // Meldung "Anmeldung abgelaufen" mit Button nicht ueberschreiben
+  if (err && err.message && err.message.indexOf("Anmeldung abgelaufen") === 0) return;
   const box = document.getElementById("errorBox");
   box.style.display = "block";
   box.textContent = "Fehler: " + (err.message || err);
@@ -855,13 +857,31 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
 // GRAPH API HELPER
 // ============================================================
 async function getToken() {
-  const result = await msalInstance.acquireTokenSilent({
-    scopes: graphScopes,
-    account: currentAccount
-  }).catch(async () => {
-    return msalInstance.acquireTokenRedirect({ scopes: graphScopes });
-  });
-  return result.accessToken;
+  const account = currentAccount || msalInstance.getAllAccounts()[0];
+  try {
+    const result = await msalInstance.acquireTokenSilent({
+      scopes: graphScopes,
+      account: account
+    });
+    return result.accessToken;
+  } catch (err) {
+    // Kein automatischer Redirect mehr: das wuerde die Seite mitten im Speichern
+    // neu laden und eingegebene Daten verwerfen. Stattdessen Fehler anzeigen
+    // und Neuanmeldung per Button anbieten.
+    console.error("Token-Fehler:", err && err.errorCode, err && (err.errorMessage || err.message), err);
+    const box = document.getElementById("errorBox");
+    box.style.display = "block";
+    box.innerHTML = "";
+    const text = document.createElement("span");
+    text.textContent = "Die Anmeldung muss erneuert werden (Code: " + ((err && err.errorCode) || "unbekannt") + "). Deine Eingaben bleiben erhalten. ";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "Neu anmelden";
+    btn.onclick = () => msalInstance.acquireTokenRedirect({ scopes: graphScopes, account: account });
+    box.appendChild(text);
+    box.appendChild(btn);
+    throw new Error("Anmeldung abgelaufen. Bitte neu anmelden und erneut speichern.");
+  }
 }
 
 async function graphFetch(path, options = {}) {
