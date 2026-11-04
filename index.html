@@ -849,9 +849,36 @@ function tabAktivieren(tabName) {
   return true;
 }
 
+// Eigene Daten (Uebersicht, Historie) neu laden - damit Aenderungen (z.B. durch
+// Admin-Speichern oder Genehmigungen) ohne manuelles F5 sichtbar werden.
+let letzteAktualisierung = Date.now();
+function aktualisiereMeineDaten() {
+  if (!currentAccount) return;
+  letzteAktualisierung = Date.now();
+  loadUebersichtUndHistorie();
+}
+
 document.querySelectorAll(".tab-btn").forEach(btn => {
-  btn.addEventListener("click", () => tabAktivieren(btn.dataset.tab));
+  btn.addEventListener("click", () => {
+    const tab = btn.dataset.tab;
+    tabAktivieren(tab);
+    if (tab === "uebersicht" || tab === "historie") aktualisiereMeineDaten();
+  });
 });
+
+// Beim Zurueckkehren zur Seite/App (z.B. vom Handy-Home-Bildschirm) automatisch aktualisieren
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && Date.now() - letzteAktualisierung > 60000) {
+    aktualisiereMeineDaten();
+  }
+});
+
+// Alle 3 Minuten im Hintergrund aktualisieren, solange die Seite sichtbar ist
+setInterval(() => {
+  if (document.visibilityState === "visible" && !document.getElementById("app").style.display.includes("none")) {
+    aktualisiereMeineDaten();
+  }
+}, 180000);
 
 // ============================================================
 // GRAPH API HELPER
@@ -1827,6 +1854,7 @@ async function speichereAdminBearbeiten() {
       if (select && select.value) ladeMitarbeiterHistorie(prefix, select.value);
     });
     loadAdminTeamDaten();
+    aktualisiereMeineDaten();
     loadAdminOffeneAntraege();
     loadHROffeneAntraege();
   } catch (err) {
@@ -2127,6 +2155,7 @@ async function adminEntscheiden(itemId, entscheidung) {
     loadAdminOffeneAntraege();
     loadHROffeneAntraege();
     loadAdminTeamDaten();
+    aktualisiereMeineDaten();
   } catch (err) {
     showError(err);
   }
@@ -2274,6 +2303,7 @@ async function jahrUebernehmen(vonJahr, nachJahr) {
     });
     renderMitarbeiterListe();
     loadAdminTeamDaten();
+    aktualisiereMeineDaten();
   } catch (err) {
     showError(err);
   }
@@ -2285,6 +2315,7 @@ async function loescheMitarbeiter(itemId) {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items/${itemId}`, { method: "DELETE" });
     loadMitarbeiterListe();
     loadAdminTeamDaten();
+    aktualisiereMeineDaten();
   } catch (err) {
     showError(err);
   }
@@ -2305,6 +2336,7 @@ async function speichereAnspruch(itemId, btnEl) {
       setTimeout(() => { btnEl.textContent = ursprungsText; }, 1500);
     }
     loadAdminTeamDaten();
+    aktualisiereMeineDaten();
   } catch (err) {
     showError(err);
   }
@@ -2490,6 +2522,7 @@ async function entraMitarbeiterUebernehmen(name, email, btnEl) {
     await loadMitarbeiterListe();
     loadEntraUsers();
     loadAdminTeamDaten();
+    aktualisiereMeineDaten();
   } catch (err) {
     showError(err);
     btnEl.disabled = false;
@@ -2523,6 +2556,7 @@ async function neuerMitarbeiterHinzufuegen(prefix) {
     anspruchEl.value = "30";
     loadMitarbeiterListe();
     loadAdminTeamDaten();
+    aktualisiereMeineDaten();
   } catch (err) {
     showError(err);
   }
