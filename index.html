@@ -209,6 +209,7 @@
   .mitarbeiter-row .at-gruppe { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; color: var(--text-soft); }
   .mitarbeiter-row .at-gruppe label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
   .mitarbeiter-row .at-gruppe input { width: auto; padding: 0; }
+  .admin-item.markiert { outline: 2px solid var(--primary); background: var(--primary-light); border-radius: 10px; }
   .genehmigung-info { margin-top: 8px; font-size: 12.5px; color: var(--text-soft); line-height: 1.5; }
   .genehmigung-info .ok { color: var(--success); }
   .genehmigung-info .nein { color: var(--danger); }
@@ -742,6 +743,7 @@ let istHR = false;
 
 // Antrag-ID aus der URL vor dem Login-Redirect sichern (geht sonst beim Redirect verloren)
 const antragIdFromUrl = new URLSearchParams(window.location.search).get("antrag");
+let pendingHighlightAntragId = null; // Antrag aus E-Mail-Link: wird im Admin-Bereich hervorgehoben
 if (antragIdFromUrl) sessionStorage.setItem("pendingAntragId", antragIdFromUrl);
 
 // ============================================================
@@ -756,14 +758,13 @@ async function init() {
     currentAccount = accounts[0];
 
     const antragId = antragIdFromUrl || sessionStorage.getItem("pendingAntragId");
+    // Link aus der E-Mail (?antrag=ID): Hauptseite oeffnen und den Antrag im Admin-Bereich hervorheben
     if (antragId) {
       sessionStorage.removeItem("pendingAntragId");
-      document.getElementById("userInfo").style.display = "flex";
-      document.getElementById("userName").textContent = currentAccount.name || currentAccount.username;
-      document.getElementById("loginScreen").style.display = "none";
-      document.getElementById("genehmigungScreen").style.display = "block";
-      loadGenehmigungAntrag(antragId);
-    } else {
+      pendingHighlightAntragId = antragId;
+      try { history.replaceState(null, "", window.location.pathname); } catch (e) {}
+    }
+    {
       showApp();
       await ladeFeiertage();
       await pruefeAdminStatus();
@@ -790,6 +791,7 @@ async function init() {
       if (!gespeicherterTab || !tabAktivieren(gespeicherterTab)) {
         tabAktivieren("uebersicht");
       }
+      if (pendingHighlightAntragId && istAdmin) tabAktivieren("admin");
     }
   }
 }
@@ -2162,7 +2164,7 @@ async function loadAdminOffeneAntraege() {
       const istStorno = f.Status === "Storno beantragt";
       const stornoBadge = istStorno ? `<span class="status status-Abgelehnt" style="margin-left:8px;">Storno-Anfrage</span>` : "";
       return `
-        <div class="admin-item">
+        <div class="admin-item" id="admin-item-${item.id}">
           <div class="antrag-item-top">
             <div>
               <div><strong>${f.AntragstellerName || f.AntragstellerEmail}</strong>${stornoBadge}</div>
@@ -2180,6 +2182,15 @@ async function loadAdminOffeneAntraege() {
         </div>
       `;
     }).join("");
+
+    if (pendingHighlightAntragId) {
+      const ziel = document.getElementById("admin-item-" + pendingHighlightAntragId);
+      if (ziel) {
+        ziel.classList.add("markiert");
+        ziel.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+      pendingHighlightAntragId = null;
+    }
   } catch (err) {
     showError(err);
     el.innerHTML = "<p>Fehler beim Laden.</p>";
@@ -2673,6 +2684,23 @@ if (hrNeuerBtn) hrNeuerBtn.addEventListener("click", () => neuerMitarbeiterHinzu
     sidebarLogo.src = headerLogo.src;
     sidebarLogo.style.display = "block";
   }
+})();
+
+// Klick auf "Urlaubsantrag" im Header: zur Uebersicht (Hauptseite)
+(function() {
+  const titel = document.querySelector("header h1");
+  if (!titel) return;
+  titel.style.cursor = "pointer";
+  titel.title = "Zur Übersicht";
+  titel.addEventListener("click", function() {
+    document.getElementById("genehmigungScreen").style.display = "none";
+    if (currentAccount) {
+      document.getElementById("app").style.display = "block";
+      tabAktivieren("uebersicht");
+      aktualisiereMeineDaten();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  });
 })();
 
 // Datenschutz-Dialog
