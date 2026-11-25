@@ -206,6 +206,12 @@
   .mitarbeiter-row .name { flex: 1; font-size: 14px; font-weight: 500; }
   .mitarbeiter-row input { width: 70px; margin: 0; padding: 6px 8px; }
   .mitarbeiter-row button { background: var(--primary); color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; }
+  .mitarbeiter-row .at-gruppe { flex-basis: 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: 12px; color: var(--text-soft); }
+  .mitarbeiter-row .at-gruppe label { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+  .mitarbeiter-row .at-gruppe input { width: auto; padding: 0; }
+  .genehmigung-info { margin-top: 8px; font-size: 12.5px; color: var(--text-soft); line-height: 1.5; }
+  .genehmigung-info .ok { color: var(--success); }
+  .genehmigung-info .nein { color: var(--danger); }
   #adminSection { display: none; margin-top: 24px; }
   .kal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .kal-week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; align-items: start; }
@@ -952,6 +958,7 @@ let feiertageCache = []; // { datum: "YYYY-MM-DD", name, wiederkehrend }
 async function ladeFeiertage() {
   try {
     const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_FEIERTAGE}/items?expand=fields`);
+    feiertageGeladen = true;
     feiertageCache = data.value.map(i => ({
       datum: (i.fields.Datum || "").split("T")[0],
       name: i.fields.Title || "Feiertag",
@@ -960,6 +967,7 @@ async function ladeFeiertage() {
   } catch (err) {
     console.error("Feiertage konnten nicht geladen werden:", err);
     feiertageCache = [];
+    feiertageGeladen = false;
   }
 }
 
@@ -979,16 +987,66 @@ function localDatumIso(d) {
   return `${y}-${m}-${t}`;
 }
 
-function berechneTage(von, bis) {
+// Arbeitstage: Wochentage als Zahlen (1=Mo ... 5=Fr). Standard: Mo-Fr.
+const ALLE_ARBEITSTAGE = [1, 2, 3, 4, 5];
+let meineArbeitstage = ALLE_ARBEITSTAGE.slice();
+let aktiveGenehmigerCache = null; // Liste der aktiven Genehmiger (fuer Fortschrittsanzeige)
+let feiertageGeladen = true;
+
+function parseArbeitstage(text) {
+  if (!text) return ALLE_ARBEITSTAGE.slice();
+  const tage = String(text).split(",").map(t => Number(t.trim())).filter(t => t >= 1 && t <= 7);
+  return tage.length ? tage : ALLE_ARBEITSTAGE.slice();
+}
+
+function arbeitstageFuerEmail(email) {
+  const mail = (email || "").toLowerCase();
+  const eintraege = (typeof alleMitarbeiterEintraegeCache !== "undefined" ? alleMitarbeiterEintraegeCache : [])
+    .filter(i => (i.fields.Email || "").toLowerCase() === mail && i.fields.Arbeitstage);
+  if (eintraege.length === 0) return ALLE_ARBEITSTAGE.slice();
+  return parseArbeitstage(eintraege[0].fields.Arbeitstage);
+}
+
+function berechneTage(von, bis, arbeitstage) {
+  const tageSet = arbeitstage || meineArbeitstage;
   const start = new Date(von);
   const end = new Date(bis);
   let tage = 0;
   for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
     const wd = d.getDay();
     const iso = localDatumIso(d);
-    if (wd !== 0 && wd !== 6 && !istFeiertag(iso)) tage++;
+    if (tageSet.includes(wd) && !istFeiertag(iso)) tage++;
   }
   return tage;
+}
+
+// Zeigt, wer schon entschieden hat und wer noch offen ist
+function genehmigungsInfoHtml(f) {
+  const zeilen = (f.GenehmigtVon || "").split("\n").map(z => z.trim()).filter(Boolean);
+  const entscheidungen = [];
+  const entschiedeneMails = [];
+  zeilen.forEach(z => {
+    const m = z.match(/^(.*?) \((.*?)\): (genehmigt|abgelehnt), (.*)$/);
+    if (m) {
+      entscheidungen.push({ name: m[1], mail: m[2].toLowerCase(), art: m[3], datum: m[4] });
+      entschiedeneMails.push(m[2].toLowerCase());
+    } else {
+      entscheidungen.push({ name: z, mail: "", art: "info", datum: "" });
+    }
+  });
+  const teile = entscheidungen.map(e => {
+    if (e.art === "genehmigt") return `<div class="ok">✓ ${e.name} hat genehmigt (${e.datum})</div>`;
+    if (e.art === "abgelehnt") return `<div class="nein">✗ ${e.name} hat abgelehnt (${e.datum})</div>`;
+    return `<div>${e.name}</div>`;
+  });
+  const status = f.Status || "Ausstehend";
+  if ((status === "Ausstehend" || status === "Storno beantragt") && Array.isArray(aktiveGenehmigerCache)) {
+    const offen = aktiveGenehmigerCache
+      .filter(g => !entschiedeneMails.includes((g.fields.Email || "").toLowerCase()))
+      .map(g => g.fields.Title || g.fields.Email);
+    if (offen.length > 0) teile.push(`<div>Noch offen: ${offen.join(", ")}</div>`);
+  }
+  return teile.length ? `<div class="genehmigung-info">${teile.join("")}</div>` : "";
 }
 
 // ============================================================
@@ -1017,6 +1075,10 @@ async function loadUebersichtUndHistorie() {
       const j = a.fields.Jahr;
       if (j) meinAnspruchProJahr[j] = { anspruch: a.fields.JahresAnspruch || 0, uebertrag: a.fields.Uebertrag || 0 };
     });
+    const mitAT = anspruchData.value.filter(a => a.fields.Arbeitstage);
+    const aktuellesJahrEintrag = mitAT.find(a => a.fields.Jahr === new Date().getFullYear()) || mitAT[0];
+    meineArbeitstage = aktuellesJahrEintrag ? parseArbeitstage(aktuellesJahrEintrag.fields.Arbeitstage) : ALLE_ARBEITSTAGE.slice();
+    aktiveGenehmigerCache = await getAktiveGenehmiger().catch(() => aktiveGenehmigerCache);
 
     // Jahres-Dropdown befuellen: alle Jahre, in denen Antraege ODER ein Anspruchseintrag liegen, plus das laufende Jahr
     const heute = new Date().getFullYear();
@@ -1125,6 +1187,7 @@ function renderHistorieListe(items) {
             </div>
             <span class="status ${statusClass}">${f.Status || "Ausstehend"}</span>
           </div>
+          ${genehmigungsInfoHtml(f)}
           ${kommentarZeile}
           ${adminNotizZeile}
           ${aktionen}
@@ -1181,7 +1244,8 @@ function aktualisiereTageAnzeige() {
   anzeige.style.display = "block";
   anzeige.textContent = tage === 0
     ? "0 Werktage in diesem Zeitraum (nur Wochenende/Feiertage)."
-    : `${tage % 1 === 0 ? tage : tage.toString().replace(".", ",")} Werktag${tage === 1 ? "" : "e"} (Wochenenden und Feiertage schon abgezogen)`;
+    : `${tage % 1 === 0 ? tage : tage.toString().replace(".", ",")} Werktag${tage === 1 ? "" : "e"} (Wochenenden${meineArbeitstage.length < 5 ? ", arbeitsfreie Tage" : ""} und Feiertage schon abgezogen)`;
+  if (!feiertageGeladen) anzeige.textContent += " – Achtung: Feiertage konnten nicht geladen werden, die Anzahl kann zu hoch sein.";
 }
 
 ["vonDatum", "bisDatum", "halbtag"].forEach(id => {
@@ -1679,6 +1743,7 @@ function localDateFromIso(iso) {
 }
 
 function berechneAngepassteWerte(f, krankVonEingabe, krankBisEingabe) {
+  const at = arbeitstageFuerEmail(f.AntragstellerEmail);
   const originalVon = isoZuDateInput(f.VonDatum);
   const originalBis = isoZuDateInput(f.BisDatum);
   // Auf den urspruenglichen Zeitraum begrenzen, falls Admin einen weiteren Bereich eingibt
@@ -1686,7 +1751,7 @@ function berechneAngepassteWerte(f, krankVonEingabe, krankBisEingabe) {
   const kBis = krankBisEingabe > originalBis ? originalBis : krankBisEingabe;
   if (kVon > kBis) return null;
 
-  const gutgeschrieben = berechneTage(kVon, kBis);
+  const gutgeschrieben = berechneTage(kVon, kBis, at);
   const decktAnfang = kVon <= originalVon;
   const decktEnde = kBis >= originalBis;
 
@@ -1696,12 +1761,12 @@ function berechneAngepassteWerte(f, krankVonEingabe, krankBisEingabe) {
   if (decktAnfang) {
     const neuVonDate = localDateFromIso(kBis); neuVonDate.setDate(neuVonDate.getDate() + 1);
     const neuVon = localDatumIso(neuVonDate);
-    return { fall: "anfang", gutgeschrieben, neuVon, neuBis: originalBis, neueTage: berechneTage(neuVon, originalBis), zweitesSegment: null };
+    return { fall: "anfang", gutgeschrieben, neuVon, neuBis: originalBis, neueTage: berechneTage(neuVon, originalBis, at), zweitesSegment: null };
   }
   if (decktEnde) {
     const neuBisDate = localDateFromIso(kVon); neuBisDate.setDate(neuBisDate.getDate() - 1);
     const neuBis = localDatumIso(neuBisDate);
-    return { fall: "ende", gutgeschrieben, neuVon: originalVon, neuBis, neueTage: berechneTage(originalVon, neuBis), zweitesSegment: null };
+    return { fall: "ende", gutgeschrieben, neuVon: originalVon, neuBis, neueTage: berechneTage(originalVon, neuBis, at), zweitesSegment: null };
   }
   // Krankheit liegt mitten im Urlaub -> Antrag wird in zwei Abschnitte geteilt
   const ersteBisDate = localDateFromIso(kVon); ersteBisDate.setDate(ersteBisDate.getDate() - 1);
@@ -1711,8 +1776,8 @@ function berechneAngepassteWerte(f, krankVonEingabe, krankBisEingabe) {
 
   return {
     fall: "mitte", gutgeschrieben,
-    neuVon: originalVon, neuBis: ersteBis, neueTage: berechneTage(originalVon, ersteBis),
-    zweitesSegment: { von: zweiteVon, bis: originalBis, tage: berechneTage(zweiteVon, originalBis) }
+    neuVon: originalVon, neuBis: ersteBis, neueTage: berechneTage(originalVon, ersteBis, at),
+    zweitesSegment: { von: zweiteVon, bis: originalBis, tage: berechneTage(zweiteVon, originalBis, at) }
   };
 }
 
@@ -2077,7 +2142,10 @@ async function loadAdminOffeneAntraege() {
   const el = document.getElementById("adminOffeneAntraege");
   try {
     const data = await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_URLAUBSANTRAEGE}/items?expand=fields&$filter=fields/Status eq 'Ausstehend' or fields/Status eq 'Storno beantragt'`);
-    aktualisiereBadge("badge-admin", data.value.length);
+    const meineMail = currentAccount.username.toLowerCase();
+    const nochOffenFuerMich = data.value.filter(i => !(i.fields.GenehmigtVon || "").toLowerCase().includes(meineMail));
+    aktualisiereBadge("badge-admin", nochOffenFuerMich.length);
+    aktiveGenehmigerCache = await getAktiveGenehmiger().catch(() => aktiveGenehmigerCache);
     if (data.value.length === 0) {
       el.innerHTML = "<p>Keine offenen Anträge.</p>";
       return;
@@ -2098,6 +2166,7 @@ async function loadAdminOffeneAntraege() {
               <div class="antrag-meta">${formatDate(f.VonDatum)} – ${formatDate(f.BisDatum)} · ${f.Urlaubsart || ""} · ${f.AnzahlTage || "?"} Tage</div>
             </div>
           </div>
+          ${genehmigungsInfoHtml(f)}
           ${bereitsEntschieden
             ? `<div class="antrag-meta" style="margin-top:8px;">Du hast bereits entschieden.</div>`
             : `<div class="btn-row">
@@ -2213,6 +2282,11 @@ function renderMitarbeiterListe() {
       <button onclick="uebertragNeuBerechnen('${item.id}', '${(item.fields.Email || "").replace(/'/g, "&#39;")}', ${jahr})" title="Übertrag aus ${jahr - 1} neu berechnen" style="background:var(--bg); border:1px solid var(--border); color:var(--text); padding:6px 9px;">↻</button>
       <button onclick="speichereAnspruch('${item.id}', this)">Speichern</button>
       <button onclick="loescheMitarbeiter('${item.id}')" style="background:#c62828;">Entfernen</button>
+      <div class="at-gruppe">Arbeitstage:
+        ${[[1, "Mo"], [2, "Di"], [3, "Mi"], [4, "Do"], [5, "Fr"]].map(([n, l]) =>
+          `<label><input type="checkbox" id="at-${item.id}-${n}" ${parseArbeitstage(item.fields.Arbeitstage).includes(n) ? "checked" : ""} />${l}</label>`
+        ).join("")}
+      </div>
     </div>
   `).join("");
 
@@ -2291,7 +2365,10 @@ async function jahrUebernehmen(vonJahr, nachJahr) {
       await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items`, {
         method: "POST",
         body: JSON.stringify({
-          fields: { Title: item.fields.Title, Email: item.fields.Email, Jahr: nachJahr, JahresAnspruch: anspruch, Uebertrag: rest }
+          fields: Object.assign(
+            { Title: item.fields.Title, Email: item.fields.Email, Jahr: nachJahr, JahresAnspruch: anspruch, Uebertrag: rest },
+            item.fields.Arbeitstage ? { Arbeitstage: item.fields.Arbeitstage } : {}
+          )
         })
       });
     }
@@ -2326,11 +2403,24 @@ async function speichereAnspruch(itemId, btnEl) {
   const uebertragEl = document.getElementById(`uebertrag-${itemId}`);
   const neuerUebertrag = uebertragEl ? uebertragEl.value : 0;
   const ursprungsText = btnEl ? btnEl.textContent : "Speichern";
+  const felder = { JahresAnspruch: Number(neuerAnspruch), Uebertrag: Number(neuerUebertrag) };
+  const gewaehlteTage = [1, 2, 3, 4, 5].filter(n => {
+    const cb = document.getElementById(`at-${itemId}-${n}`);
+    return cb ? cb.checked : true;
+  });
+  if (gewaehlteTage.length === 0) {
+    showError(new Error("Bitte mindestens einen Arbeitstag auswählen."));
+    return;
+  }
+  const alterEintrag = alleMitarbeiterEintraegeCache.find(i => String(i.id) === String(itemId));
+  const alteTage = parseArbeitstage(alterEintrag ? alterEintrag.fields.Arbeitstage : "").join(",");
+  if (gewaehlteTage.join(",") !== alteTage) felder.Arbeitstage = gewaehlteTage.join(",");
   try {
     await graphFetch(`/sites/${SITE_PATH}/lists/${LIST_ID_MITARBEITER}/items/${itemId}`, {
       method: "PATCH",
-      body: JSON.stringify({ fields: { JahresAnspruch: Number(neuerAnspruch), Uebertrag: Number(neuerUebertrag) } })
+      body: JSON.stringify({ fields: felder })
     });
+    if (alterEintrag) Object.assign(alterEintrag.fields, felder);
     if (btnEl) {
       btnEl.textContent = "✓ Gespeichert";
       setTimeout(() => { btnEl.textContent = ursprungsText; }, 1500);
